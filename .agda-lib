@@ -1,0 +1,7 @@
+name: popl21-artifact
+depend:
+
+include:
+  .
+  agda-stdlib/src/
+  agda-categories/src/

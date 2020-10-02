@@ -1,0 +1,51 @@
+------------------------------------------------------------------------
+-- The Agda standard library
+--
+-- Operations on and properties of decidable relations
+------------------------------------------------------------------------
+
+{-# OPTIONS --without-K --safe #-}
+
+module Relation.Nullary.Decidable where
+
+open import Level using (Level)
+open import Function.Base
+open import Function.Equality    using (_⟨$⟩_; module Π)
+open import Function.Equivalence using (_⇔_; equivalence; module Equivalence)
+open import Function.Injection   using (Injection; module Injection)
+open import Relation.Binary      using (Setoid; module Setoid; Decidable)
+open import Relation.Nullary
+
+private
+  variable
+    p q : Level
+    P : Set p
+    Q : Set q
+
+------------------------------------------------------------------------
+-- Re-exporting the core definitions
+
+open import Relation.Nullary.Decidable.Core public
+
+------------------------------------------------------------------------
+-- Maps
+
+map : P ⇔ Q → Dec P → Dec Q
+map P⇔Q = map′ (to ⟨$⟩_) (from ⟨$⟩_)
+  where open Equivalence P⇔Q
+
+module _ {a₁ a₂ b₁ b₂} {A : Setoid a₁ a₂} {B : Setoid b₁ b₂}
+         (inj : Injection A B)
+  where
+
+  open Injection inj
+  open Setoid A using () renaming (_≈_ to _≈A_)
+  open Setoid B using () renaming (_≈_ to _≈B_)
+
+  -- If there is an injection from one setoid to another, and the
+  -- latter's equivalence relation is decidable, then the former's
+  -- equivalence relation is also decidable.
+
+  via-injection : Decidable _≈B_ → Decidable _≈A_
+  via-injection dec x y =
+    map′ injective (Π.cong to) (dec (to ⟨$⟩ x) (to ⟨$⟩ y))
