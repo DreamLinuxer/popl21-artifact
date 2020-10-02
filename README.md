@@ -8,6 +8,8 @@ Agda version 2.6.1
 
 ## FILES
 The main directory stores several files and directories:
+  * `agda-stdlib`: The Agda standard library (https://github.com/agda/agda-stdlib)
+  * `agda-categories`: The Category Theory library for Agda (https://github.com/agda/agda-categories)
   * `Everything.agda`: Import everything.
   * Section 2:
     * `Pi/Everything`: All theorems for Π
