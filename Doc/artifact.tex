@@ -14,10 +14,32 @@
 \title{Artifact: A Computational Interpretation of Compact Closed Categories: Reversible Programming with Negative and Fractional Types}
 \author{Chao-Hong Chen and Amr Sabry}
 \maketitle
-
-This document contains a list of claims in the paper and its corresponding code.
+\noindent
+This document contains a list of claims in the paper and corresponding code.
 
 \section{Core Reversible Language: $\Pi$}
+
+\begin{itemize}
+\item The syntax of $\Pi$ in Fig.1 is formalized in \textbf{Pi/Syntax.agda}.
+\end{itemize}
+
+\subsection{Abstract Machine Semantics}
+\begin{itemize}
+\item The $\delta$ function in Fig.2 is defined in \textbf{Pi/Opsem.agda:L47}.
+\item The well-formed continuation stacks in Fig.3 is defined in \textbf{Pi/Opsem.agda:L71}.
+\item The machine states in Def.1 is defined in \textbf{Pi/Opsem.agda:L81}.
+\item The reduction relation in Fig.4 is defined in \textbf{Pi/Opsem.agda:L86}.
+\item Lem.2 is proved in \textbf{Pi/NoRepeat.agda:L13}.
+\item Lem.3 is proved in \textbf{Pi/NoRepeat.agda:L29}.
+\item Def.4 is defined in \textbf{Pi/Eval.agda:L76}.
+\item Def.5 is defined in \textbf{Pi/Eval.agda:L121}.
+\item Thm.6 is proved in \textbf{Pi/Properties.agda:L31}.
+\end{itemize}
+\subsection{Interpreter}
+\begin{itemize}
+\item The interpreter in Fig.5 is defined in \textbf{Pi/Interp.agda:L9}.
+\item Thm.7 is proved in \textbf{Pi/Properties.agda:L49}.
+\end{itemize}
 
 \section{Termination of Reversible Abstract Machines}
 
