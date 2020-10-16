@@ -45,11 +45,11 @@ This document contains a list of claims in the paper and corresponding code.
 \section{Termination of Reversible Abstract Machines}
 \begin{itemize}
 \item The reversible abstract machine in Def.8 is defined in \textbf{RevMachine.agda:L8}.
-\item Lem.9 is proved in \textbf{RevNoRepeat.agda:L112}.
+\item Lem.9 is proved in \textbf{RevNoRepeat.agda:L125}.
 \item Lem.10 is proved in \textbf{Pi/Eval.agda:L13}.
 \item Thm.11 is proved in \textbf{Pi/Eval.agda:L76}.
-\item The reversible abstract machine in Def.12 is defined in \textbf{RevMachine.agda:L15}.
-\item Lem.13 is proved in \textbf{PartialRevNoRepeat.agda:L123}.
+\item The partial reversible abstract machine in Def.12 is defined in \textbf{RevMachine.agda:L15}.
+\item Lem.13 is proved in \textbf{PartialRevNoRepeat.agda:L136}.
 \end{itemize}
 
 \section{Space and Time Resources and Trade-Offs}
@@ -77,25 +77,21 @@ This document contains a list of claims in the paper and corresponding code.
   for $\Pi^m$ which follows from the finitness of $\Pi^m$ machine states and non-repeating lemma for reversible abstract
   machines (Lem.9).
 \item Def.21 is defined in \textbf{Pi-/Eval.agda:L177}.
-\item Thm.22 is proved in \textbf{Pi-/Properties.agda:L70}.
+\item Thm.22 is proved in \textbf{Pi-/Properties.agda:L133}.
 \end{itemize}
 
 \subsection{Interpreter}
 \begin{itemize}
 \item The interpreter is defined in \textbf{Pi-/Interp.agda:L12}.
-\item Thm.23 is proved in \textbf{Pi-/Properties.agda:L198}. This proof relies on the finitness of execution trace
-  for $\Pi^m$.
+\item Thm.23 is proved in \textbf{Pi-/Properties.agda:L193}.
 \end{itemize}
 
 \subsection{Compact Closed Category}
 \begin{itemize}
-\item Thm.24 is proved in \textbf{Pi-/Category.agda:L297}. This proof relies on the finitness of execution trace
-  for $\Pi^m$.
-\item Thm.25 is proved in \textbf{Pi-/Category.agda:L301}. This proof relies on the finitness of execution trace
-  for $\Pi^m$.
+\item Thm.24 is proved in \textbf{Pi-/Category.agda:L297}.
+\item Thm.25 is proved in \textbf{Pi-/Category.agda:L301}.
 \item The code for the remark in the end is in \textbf{Pi-/Category.agda:L306-363}.
 \end{itemize}
-
 
 \section{Fractional Types: $\Pi^d$}
 \subsection{Abstract Machine Semantics}
@@ -145,14 +141,13 @@ This document contains a list of claims in the paper and corresponding code.
   for $\Pi^{\mathbb{Q}}$ which follows from the finitness of $\Pi^{\mathbb{Q}}$ machine states and non-repeating lemma for partial
   reversible abstract machines (Lem.13).
 \item Def.43 is in \textbf{PiQ/Eval.agda:L201}.
-\item Thm.44 is proved in \textbf{PiQ/Properties.agda:L93}.
+\item Thm.44 is proved in \textbf{PiQ/Properties.agda:L217}.
 \end{itemize}
 
 \subsection{Interpreter}
 \begin{itemize}
 \item The interpreter is defined in \textbf{PiQ/Interp.agda:L20}.
-\item The equivalence between interpreter and machine semantics is proved in \textbf{PiQ/Properties.agda:L351}.
-  This proof relies on the finitness of execution trace for $\Pi^{\mathbb{Q}}$.
+\item The equivalence between interpreter and machine semantics is proved in \textbf{PiQ/Properties.agda:L402}.
 \end{itemize}
 
 \section{Programming with Negative and Fractional Types}
