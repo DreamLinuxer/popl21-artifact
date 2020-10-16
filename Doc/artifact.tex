@@ -12,7 +12,9 @@
 \setcounter{section}{1}
 
 \begin{document}
-\title{Artifact: A Computational Interpretation of Compact Closed Categories: Reversible Programming with Negative and Fractional Types}
+\title{Artifact: A Computational Interpretation of \\
+  Compact Closed Categories: \\
+  Reversible Programming with Negative and Fractional Types}
 \author{Chao-Hong Chen and Amr Sabry}
 \maketitle
 \noindent
@@ -27,8 +29,8 @@ This document contains a list of claims in the paper and corresponding code.
 \subsection{Abstract Machine Semantics}
 \begin{itemize}
 \item The $\delta$ function in Fig.2 is defined in \textbf{Pi/Opsem.agda:L47}.
-\item The well-formed continuation stacks in Fig.3 is defined in \textbf{Pi/Opsem.agda:L71}.
-\item The machine states in Def.1 is defined in \textbf{Pi/Opsem.agda:L81}.
+\item The well-formed continuation stacks in Fig.3 are defined in \textbf{Pi/Opsem.agda:L71}.
+\item The machine states in Def.1 are defined in \textbf{Pi/Opsem.agda:L81}.
 \item The reduction relation in Fig.4 is defined in \textbf{Pi/Opsem.agda:L86}.
 \item Lem.2 is proved in \textbf{Pi/NoRepeat.agda:L13}.
 \item Lem.3 is proved in \textbf{Pi/NoRepeat.agda:L29}.
@@ -55,7 +57,7 @@ This document contains a list of claims in the paper and corresponding code.
 \section{Space and Time Resources and Trade-Offs}
 \begin{itemize}
 \item $\# \sigma$ is defined in \textbf{TimeSpace.agda:L71}.
-\item The examples in the end of this section is in \textbf{TimeSpace.agda:L80-87}.
+\item The examples at the end of this section are in \textbf{TimeSpace.agda:L80-87}.
 \end{itemize}
 
 \section{Negative Types: $\Pi^m$}
@@ -63,7 +65,7 @@ This document contains a list of claims in the paper and corresponding code.
 \begin{itemize}
 \item The syntax of $\Pi^m$ is formalized in \textbf{Pi-/Syntax.agda}.
 \item Def.14 is defined in \textbf{Pi-/Opsem.agda:L84}.
-\item The transition rules in Fig.6 is defined in \textbf{Pi-/Opsem.agda:L91}.
+\item The transition rules in Fig.6 are defined in \textbf{Pi-/Opsem.agda:L91}.
 \end{itemize}
 
 \subsection{Properties}
@@ -73,8 +75,10 @@ This document contains a list of claims in the paper and corresponding code.
 \item Lem.17 is proved in \textbf{Pi-/Eval.agda:L23}.
 \item $\Pi^m$ is a reversible abstract machine is proved in \textbf{Pi-/NoRepeat.agda:L223}.
 \item Def.18 is generalized in Def.20.
-\item Def.20 and generalized Thm.19 is in \textbf{Pi-/Eval.agda:L172}. This proof relies on the finitness of execution trace
-  for $\Pi^m$ which follows from the finitness of $\Pi^m$ machine states and non-repeating lemma for reversible abstract
+\item Def.20 and generalized Thm.19 are in
+  \textbf{Pi-/Eval.agda:L172}. The proof relies on the finitness of
+  execution traces  for $\Pi^m$ which follows from the finitness of
+  $\Pi^m$ machine states and the non-repeating lemma for reversible abstract
   machines (Lem.9).
 \item Def.21 is defined in \textbf{Pi-/Eval.agda:L177}.
 \item Thm.22 is proved in \textbf{Pi-/Properties.agda:L133}.
@@ -98,7 +102,7 @@ This document contains a list of claims in the paper and corresponding code.
 \begin{itemize}
 \item The syntax of $\Pi^d$ is formalized in \textbf{PiFrac/Syntax.agda}.
 \item Def.26 is defined in \textbf{PiFrac/Opsem.agda:L103}.
-\item The transition rules in Fig.8 is defined in \textbf{PiFrac/Opsem.agda:L109}.
+\item The transition rules in Fig.8 are defined in \textbf{PiFrac/Opsem.agda:L109}.
 \end{itemize}
 
 \subsection{Properties}
@@ -128,7 +132,7 @@ This document contains a list of claims in the paper and corresponding code.
 \begin{itemize}
 \item The syntax of $\Pi^{\mathbb{Q}}$ is defined in \textbf{PiQ/Syntax.agda}.
 \item Def.37 is defined in \textbf{PiQ/Opsem.agda:L115}.
-\item The transition rules in Fig.9 is defined in \textbf{PiQ/Opsem.agda:L123}.
+\item The transition rules in Fig.9 are defined in \textbf{PiQ/Opsem.agda:L123}.
 \end{itemize}
 
 \subsection{Properties}
@@ -137,8 +141,9 @@ This document contains a list of claims in the paper and corresponding code.
 \item Lem.39 is proved in \textbf{PiQ/NoRepeat.agda:L135}.
 \item Lem.40 is proved in \textbf{PiQ/Eval.agda:L24}.
 \item $\Pi^{\mathbb{Q}}$ is a partial reversible abstract machine is proved in \textbf{PiQ/NoRepeat.agda:L250}.
-\item Def.41 and Thm.42 is in \textbf{PiQ/Eval.agda:L196}. This proof relies on the finitness of execution trace
-  for $\Pi^{\mathbb{Q}}$ which follows from the finitness of $\Pi^{\mathbb{Q}}$ machine states and non-repeating lemma for partial
+\item Def.41 and Thm.42 is in \textbf{PiQ/Eval.agda:L196}. This proof relies on the finitness of execution traces
+  for $\Pi^{\mathbb{Q}}$ which follows from the finitness of
+  $\Pi^{\mathbb{Q}}$ machine states and the non-repeating lemma for partial
   reversible abstract machines (Lem.13).
 \item Def.43 is in \textbf{PiQ/Eval.agda:L201}.
 \item Thm.44 is proved in \textbf{PiQ/Properties.agda:L217}.
@@ -152,8 +157,8 @@ This document contains a list of claims in the paper and corresponding code.
 
 \section{Programming with Negative and Fractional Types}
 \begin{itemize}
-\item All examples except for SAT solver is in \textbf{PiQ/Examples.agda}.
-\item The implementation of SAT solver is in \textbf{PiQ/SAT.agda}.
+\item All examples except for the SAT solver are in \textbf{PiQ/Examples.agda}.
+\item The implementation of the SAT solver is in \textbf{PiQ/SAT.agda}.
 \end{itemize}
 
 \end{document}
