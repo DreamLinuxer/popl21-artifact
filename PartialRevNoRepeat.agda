@@ -32,6 +32,10 @@ module PartialRevNoRepeat {ℓ} (M : PartialRevMachine {ℓ}) where
   ◾ ++↦ st₁↦*st₂ = st₁↦*st₂
   (st₁↦st₁' ∷ st₁'↦*st₂) ++↦ st₂'↦*st₃ = st₁↦st₁' ∷ (st₁'↦*st₂ ++↦ st₂'↦*st₃)
 
+  len↦ : ∀ {st st'} → st ↦* st' → ℕ
+  len↦ ◾ = 0
+  len↦ (_ ∷ r) = 1 + len↦ r
+
   data _↦ᵣₑᵥ*_ : State → State → Set (L.suc ℓ) where
     ◾ : ∀ {st} → st ↦ᵣₑᵥ* st
     _∷_ : ∀ {st₁ st₂ st₃} → st₁ ↦ᵣₑᵥ st₂ → st₂ ↦ᵣₑᵥ* st₃ → st₁ ↦ᵣₑᵥ* st₃
@@ -56,6 +60,15 @@ module PartialRevNoRepeat {ℓ} (M : PartialRevMachine {ℓ}) where
   deterministic* (r ∷ ↦*₁) ◾ stuck₁ stuck₂ = ⊥-elim (stuck₂ (_ , r))
   deterministic* (r₁ ∷ ↦*₁) (r₂ ∷ ↦*₂) stuck₁ stuck₂ with deterministic r₁ r₂
   ... | refl = deterministic* ↦*₁ ↦*₂ stuck₁ stuck₂
+
+  deterministic*' : ∀ {st st₁ st'} → (rs₁ : st ↦* st₁) → (rs : st ↦* st')
+                  → is-stuck st'
+                  → Σ[ rs' ∈ st₁ ↦* st' ] (len↦ rs ≡ len↦ rs₁ + len↦ rs')
+  deterministic*' ◾ rs stuck = rs , refl
+  deterministic*' (r ∷ rs₁) ◾ stuck = ⊥-elim (stuck (_ , r))
+  deterministic*' (r ∷ rs₁) (r' ∷ rs) stuck with deterministic r r'
+  ... | refl with deterministic*' rs₁ rs stuck
+  ... | (rs' , eq) = rs' , cong suc eq
 
   deterministicᵣₑᵥ* : ∀ {st st₁ st₂} → st ↦ᵣₑᵥ* st₁ → st ↦ᵣₑᵥ* st₂ → ¬ (is-fail st)
                     → is-initial st₁ → is-initial st₂

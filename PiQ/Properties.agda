@@ -5,7 +5,9 @@ open import Data.Sum
 open import Data.Product
 open import Data.Maybe
 open import Data.Maybe.Properties
-open import Data.List as L hiding (_∷_)
+open import Data.Nat hiding (_≟_)
+open import Data.Nat.Induction
+open import Data.Nat.Properties hiding (_≟_)
 open import Function using (_∘_)
 open import Relation.Binary.Core
 open import Relation.Binary
@@ -75,7 +77,7 @@ Rev* (r ∷ (r' ∷ rs)) nf nf' = Rev* (r' ∷ rs) nf'' nf' ++↦ (Rev r nf nf''
   where
   nf'' = λ eq → ⊠-is-stuck eq (_ , r')
 
--- Helper function
+-- Helper functions
 inspect⊎ : ∀ {ℓ ℓ₁ ℓ₂ ℓ₃} {P : Set ℓ} {Q : Set ℓ₁} {R : Set ℓ₂} {S : Set ℓ₃}
          → (f : P → Q ⊎ R ⊎ S) → (p : P) → (∃[ q ] (inj₁ q ≡ f p)) ⊎ (∃[ r ] (inj₂ (inj₁ r) ≡ f p)) ⊎ (∃[ s ] (inj₂ (inj₂ s) ≡ f p))
 inspect⊎ f p with f p
@@ -88,6 +90,128 @@ Val≢ ()
 
 Maybe≢ : ∀ {ℓ} {A : Set ℓ} {a : A} → just a ≢ nothing
 Maybe≢ ()
+
+toState : ∀ {A B} → (A ↔ B) → Maybe (Val B A) → State
+toState c (just (b ⃗)) = ［ c ∣ b ∣ ☐ ］▷
+toState c (just (a ⃖)) = ⟨ c ∣ a ∣ ☐ ⟩◁
+toState c nothing = ⊠
+
+is-stuck-toState : ∀ {A B} → (c : A ↔ B) → (v : Maybe (Val B A)) → is-stuck (toState c v)
+is-stuck-toState c (just (b ⃗)) = λ ()
+is-stuck-toState c (just (a ⃖)) = λ ()
+is-stuck-toState c nothing = λ ()
+
+toStateEq₁ : ∀ {A B b} → (c : A ↔ B) → (x : Maybe (Val B A)) → ［ c ∣ b ∣ ☐ ］▷ ≡ toState c x → just (b ⃗) ≡ x
+toStateEq₁ c (just (x ⃗)) refl = refl
+
+toStateEq₂ : ∀ {A B a} → (c : A ↔ B) → (x : Maybe (Val B A)) → ⟨ c ∣ a ∣ ☐ ⟩◁ ≡ toState c x → just (a ⃖) ≡ x
+toStateEq₂ c (just (x ⃖)) refl = refl
+
+toStateEq₃ : ∀ {A B} → (c : A ↔ B) → (x : Maybe (Val B A)) → ⊠ ≡ toState c x → nothing ≡ x
+toStateEq₃ c nothing refl = refl
+toStateEq₃ c (just (x ⃗)) ()
+toStateEq₃ c (just (x ⃖)) ()
+
+toState≡₁ : ∀ {A B b x} {c : A ↔ B} → toState c x ≡ ［ c ∣ b ∣ ☐ ］▷ → x ≡ just (b ⃗)
+toState≡₁ {x = just (x ⃗)} refl = refl
+
+toState≡₂ : ∀ {A B a x} {c : A ↔ B} → toState c x ≡ ⟨ c ∣ a ∣ ☐ ⟩◁ → x ≡ just (a ⃖)
+toState≡₂ {x = just (x ⃖)} refl = refl
+
+toState≡₃ : ∀ {A B x} {c : A ↔ B} → toState c x ≡ ⊠ → x ≡ nothing
+toState≡₃ {x = nothing} refl = refl
+toState≡₃ {x = just (x ⃗)} ()
+toState≡₃ {x = just (x ⃖)} ()
+
+eval-toState₁ : ∀ {A B a x} {c : A ↔ B} → ⟨ c ∣ a ∣ ☐ ⟩▷ ↦* (toState c x) → eval c (a ⃗) ≡ x
+eval-toState₁ {a = a} {just (b ⃗)} {c} rs with inspect⊎ (run ⟨ c ∣ a ∣ ☐ ⟩▷) (λ ())
+eval-toState₁ {a = a} {just (b ⃗)} {c} rs | inj₁ ((a' , rs') , eq) with deterministic* rs rs' (λ ()) (λ ())
+... | ()
+eval-toState₁ {a = a} {just (b ⃗)} {c} rs | inj₂ (inj₁ ((b' , rs') , eq)) with deterministic* rs rs' (λ ()) (λ ())
+... | refl = subst (λ x → [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x ≡ just (b ⃗)) eq refl
+eval-toState₁ {a = a} {just (b ⃗)} {c} rs | inj₂ (inj₂ (rs' , eq)) with deterministic* rs rs' (λ ()) (λ ())
+... | ()
+eval-toState₁ {a = a} {just (a' ⃖)} {c} rs with inspect⊎ (run ⟨ c ∣ a ∣ ☐ ⟩▷) (λ ())
+eval-toState₁ {a = a} {just (a' ⃖)} {c} rs | inj₁ ((a'' , rs') , eq) with deterministic* rs rs' (λ ()) (λ ())
+... | refl = subst (λ x → [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x ≡ just (a' ⃖)) eq refl
+eval-toState₁ {a = a} {just (a' ⃖)} {c} rs | inj₂ (inj₁ ((b' , rs') , eq)) with deterministic* rs rs' (λ ()) (λ ())
+... | ()
+eval-toState₁ {a = a} {just (a' ⃖)} {c} rs | inj₂ (inj₂ (rs' , eq)) with deterministic* rs rs' (λ ()) (λ ())
+... | ()
+eval-toState₁ {a = a} {nothing} {c} rs with inspect⊎ (run ⟨ c ∣ a ∣ ☐ ⟩▷) (λ ())
+eval-toState₁ {a = a} {nothing} {c} rs | inj₁ ((a' , rs') , eq) with deterministic* rs rs' (λ ()) (λ ())
+... | ()
+eval-toState₁ {a = a} {nothing} {c} rs | inj₂ (inj₁ ((b' , rs') , eq)) with deterministic* rs rs' (λ ()) (λ ())
+... | ()
+eval-toState₁ {a = a} {nothing} {c} rs | inj₂ (inj₂ (rs' , eq)) with deterministic* rs rs' (λ ()) (λ ())
+... | refl = subst (λ x → [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x ≡ nothing) eq refl
+
+eval-toState₂ : ∀ {A B b x} {c : A ↔ B} → ［ c ∣ b ∣ ☐ ］◁ ↦* (toState c x) → eval c (b ⃖) ≡ x
+eval-toState₂ {b = b} {just (b' ⃗)} {c} rs with inspect⊎ (run ［ c ∣ b ∣ ☐ ］◁) (λ ())
+eval-toState₂ {b = b} {just (b' ⃗)} {c} rs | inj₁ ((a' , rs') , eq) with deterministic* rs rs' (λ ()) (λ ())
+... | ()
+eval-toState₂ {b = b} {just (b' ⃗)} {c} rs | inj₂ (inj₁ ((b'' , rs') , eq)) with deterministic* rs rs' (λ ()) (λ ())
+... | refl = subst (λ x → [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x ≡ just (b' ⃗)) eq refl
+eval-toState₂ {b = b} {just (b' ⃗)} {c} rs | inj₂ (inj₂ (rs' , eq)) with deterministic* rs rs' (λ ()) (λ ())
+... | ()
+eval-toState₂ {b = b} {just (a ⃖)} {c} rs with inspect⊎ (run ［ c ∣ b ∣ ☐ ］◁) (λ ())
+eval-toState₂ {b = b} {just (a ⃖)} {c} rs | inj₁ ((a'' , rs') , eq) with deterministic* rs rs' (λ ()) (λ ())
+... | refl = subst (λ x → [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x ≡ just (a ⃖)) eq refl
+eval-toState₂ {b = b} {just (a ⃖)} {c} rs | inj₂ (inj₁ ((b' , rs') , eq)) with deterministic* rs rs' (λ ()) (λ ())
+... | ()
+eval-toState₂ {b = b} {just (a ⃖)} {c} rs | inj₂ (inj₂ (rs' , eq)) with deterministic* rs rs' (λ ()) (λ ())
+... | ()
+eval-toState₂ {b = b} {nothing} {c} rs with inspect⊎ (run ［ c ∣ b ∣ ☐ ］◁) (λ ())
+eval-toState₂ {b = b} {nothing} {c} rs | inj₁ ((a' , rs') , eq) with deterministic* rs rs' (λ ()) (λ ())
+... | ()
+eval-toState₂ {b = b} {nothing} {c} rs | inj₂ (inj₁ ((b' , rs') , eq)) with deterministic* rs rs' (λ ()) (λ ())
+... | ()
+eval-toState₂ {b = b} {nothing} {c} rs | inj₂ (inj₂ (rs' , eq)) with deterministic* rs rs' (λ ()) (λ ())
+... | refl = subst (λ x → [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x ≡ nothing) eq refl
+
+getₜᵣ⃗ : ∀ {A B} → (c : A ↔ B) → {v : ⟦ A ⟧} {v' : Maybe (Val B A)} → eval c (v ⃗) ≡ v'
+       → ⟨ c ∣ v ∣ ☐ ⟩▷ ↦* toState c v'
+getₜᵣ⃗ c {v} {v'} eq with inspect⊎ (run ⟨ c ∣ v ∣ ☐ ⟩▷) (λ ())
+getₜᵣ⃗ c {v} {nothing} eq | inj₁ ((x₁ , rs₁) , eq₁) with trans (subst (λ x → just (x₁ ⃖) ≡ [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x) eq₁ refl) eq
+... | ()
+getₜᵣ⃗ c {v} {just (x ⃗)} eq | inj₁ ((x₁ , rs₁) , eq₁) with trans (subst (λ x → just (x₁ ⃖) ≡ [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x) eq₁ refl) eq
+... | ()
+getₜᵣ⃗ c {v} {just (x ⃖)} eq | inj₁ ((x₁ , rs₁) , eq₁) with trans (subst (λ x → just (x₁ ⃖) ≡ [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x) eq₁ refl) eq
+... | refl = rs₁
+getₜᵣ⃗ c {v} {nothing} eq | inj₂ (inj₁ ((x₁ , rs₁) , eq₁)) with trans (subst (λ x → just (x₁ ⃗) ≡ [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x) eq₁ refl) eq
+... | ()
+getₜᵣ⃗ c {v} {just (x ⃗)} eq | inj₂ (inj₁ ((x₁ , rs₁) , eq₁)) with trans (subst (λ x → just (x₁ ⃗) ≡ [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x) eq₁ refl) eq
+... | refl = rs₁
+getₜᵣ⃗ c {v} {just (x ⃖)} eq | inj₂ (inj₁ ((x₁ , rs₁) , eq₁)) with trans (subst (λ x → just (x₁ ⃗) ≡ [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x) eq₁ refl) eq
+... | ()
+getₜᵣ⃗ c {v} {nothing} eq | inj₂ (inj₂ (rs₁ , eq₁)) with trans (subst (λ x → nothing ≡ [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x) eq₁ refl) eq
+... | refl = rs₁
+getₜᵣ⃗ c {v} {just (x ⃗)} eq | inj₂ (inj₂ (rs₁ , eq₁)) with trans (subst (λ x → nothing ≡ [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x) eq₁ refl) eq
+... | ()
+getₜᵣ⃗ c {v} {just (x ⃖)} eq | inj₂ (inj₂ (rs₁ , eq₁)) with trans (subst (λ x → nothing ≡ [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x) eq₁ refl) eq
+... | ()
+
+getₜᵣ⃖ : ∀ {A B} → (c : A ↔ B) → {v : ⟦ B ⟧} {v' : Maybe (Val B A)} → eval c (v ⃖) ≡ v'
+       → ［ c ∣ v ∣ ☐ ］◁ ↦* toState c v'
+getₜᵣ⃖ c {v} {v'} eq with inspect⊎ (run ［ c ∣ v ∣ ☐ ］◁) (λ ())
+getₜᵣ⃖ c {v} {nothing} eq | inj₁ ((x₁ , rs₁) , eq₁) with trans (subst (λ x → just (x₁ ⃖) ≡ [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x) eq₁ refl) eq
+... | ()
+getₜᵣ⃖ c {v} {just (x ⃗)} eq | inj₁ ((x₁ , rs₁) , eq₁) with trans (subst (λ x → just (x₁ ⃖) ≡ [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x) eq₁ refl) eq
+... | ()
+getₜᵣ⃖ c {v} {just (x ⃖)} eq | inj₁ ((x₁ , rs₁) , eq₁) with trans (subst (λ x → just (x₁ ⃖) ≡ [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x) eq₁ refl) eq
+... | refl = rs₁
+getₜᵣ⃖ c {v} {nothing} eq | inj₂ (inj₁ ((x₁ , rs₁) , eq₁)) with trans (subst (λ x → just (x₁ ⃗) ≡ [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x) eq₁ refl) eq
+... | ()
+getₜᵣ⃖ c {v} {just (x ⃗)} eq | inj₂ (inj₁ ((x₁ , rs₁) , eq₁)) with trans (subst (λ x → just (x₁ ⃗) ≡ [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x) eq₁ refl) eq
+... | refl = rs₁
+getₜᵣ⃖ c {v} {just (x ⃖)} eq | inj₂ (inj₁ ((x₁ , rs₁) , eq₁)) with trans (subst (λ x → just (x₁ ⃗) ≡ [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x) eq₁ refl) eq
+... | ()
+getₜᵣ⃖ c {v} {nothing} eq | inj₂ (inj₂ (rs₁ , eq₁)) with trans (subst (λ x → nothing ≡ [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x) eq₁ refl) eq
+... | refl = rs₁
+getₜᵣ⃖ c {v} {just (x ⃗)} eq | inj₂ (inj₂ (rs₁ , eq₁)) with trans (subst (λ x → nothing ≡ [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x) eq₁ refl) eq
+... | ()
+getₜᵣ⃖ c {v} {just (x ⃖)} eq | inj₂ (inj₂ (rs₁ , eq₁)) with trans (subst (λ x → nothing ≡ [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x) eq₁ refl) eq
+... | ()
 
 -- Forward evaluator is reversible
 evalIsRev : ∀ {A B} → (c : A ↔ B) (v₁ : Val A B) (v₂ : Val B A)
@@ -273,79 +397,6 @@ evalᵣₑᵥIsRev c (v₁ ⃖) (v₂ ⃖) eq | inj₂ (inj₂ (rs' , eq')) = �
   contr : nothing ≡ just (v₂ ⃖)
   contr = trans (subst (λ x → nothing ≡ [ just ∘ _⃗ ∘ proj₁ , [ just ∘ _⃖ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x) eq' refl) eq
 
-getₜᵣ⃗ : ∀ {A B} → (c : A ↔ B) → {v : ⟦ A ⟧} {v' : Maybe (Val B A)} → eval c (v ⃗) ≡ v'
-       → let tr : Maybe (Val B A) → Set₁
-             tr = (λ {(just (w ⃖)) → ⟨ c ∣ v ∣ ☐ ⟩▷ ↦*  ⟨ c ∣ w ∣ ☐ ⟩◁ ;
-                      (just (w ⃗)) → ⟨ c ∣ v ∣ ☐ ⟩▷ ↦* ［ c ∣ w ∣ ☐ ］▷ ;
-                      nothing      → ⟨ c ∣ v ∣ ☐ ⟩▷ ↦* ⊠ })
-         in  tr v'
-getₜᵣ⃗ c {v} {v'} eq with inspect⊎ (run ⟨ c ∣ v ∣ ☐ ⟩▷) (λ ())
-getₜᵣ⃗ c {v} {nothing} eq | inj₁ ((x₁ , rs₁) , eq₁) with trans (subst (λ x → just (x₁ ⃖) ≡ [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x) eq₁ refl) eq
-... | ()
-getₜᵣ⃗ c {v} {just (x ⃗)} eq | inj₁ ((x₁ , rs₁) , eq₁) with trans (subst (λ x → just (x₁ ⃖) ≡ [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x) eq₁ refl) eq
-... | ()
-getₜᵣ⃗ c {v} {just (x ⃖)} eq | inj₁ ((x₁ , rs₁) , eq₁) with trans (subst (λ x → just (x₁ ⃖) ≡ [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x) eq₁ refl) eq
-... | refl = rs₁
-getₜᵣ⃗ c {v} {nothing} eq | inj₂ (inj₁ ((x₁ , rs₁) , eq₁)) with trans (subst (λ x → just (x₁ ⃗) ≡ [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x) eq₁ refl) eq
-... | ()
-getₜᵣ⃗ c {v} {just (x ⃗)} eq | inj₂ (inj₁ ((x₁ , rs₁) , eq₁)) with trans (subst (λ x → just (x₁ ⃗) ≡ [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x) eq₁ refl) eq
-... | refl = rs₁
-getₜᵣ⃗ c {v} {just (x ⃖)} eq | inj₂ (inj₁ ((x₁ , rs₁) , eq₁)) with trans (subst (λ x → just (x₁ ⃗) ≡ [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x) eq₁ refl) eq
-... | ()
-getₜᵣ⃗ c {v} {nothing} eq | inj₂ (inj₂ (rs₁ , eq₁)) with trans (subst (λ x → nothing ≡ [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x) eq₁ refl) eq
-... | refl = rs₁
-getₜᵣ⃗ c {v} {just (x ⃗)} eq | inj₂ (inj₂ (rs₁ , eq₁)) with trans (subst (λ x → nothing ≡ [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x) eq₁ refl) eq
-... | ()
-getₜᵣ⃗ c {v} {just (x ⃖)} eq | inj₂ (inj₂ (rs₁ , eq₁)) with trans (subst (λ x → nothing ≡ [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x) eq₁ refl) eq
-... | ()
-
-getₜᵣ⃖ : ∀ {A B} → (c : A ↔ B) → {v : ⟦ B ⟧} {v' : Maybe (Val B A)} → eval c (v ⃖) ≡ v'
-       → let tr : Maybe (Val B A) → Set₁
-             tr = (λ {(just (w ⃖)) → ［ c ∣ v ∣ ☐ ］◁ ↦*  ⟨ c ∣ w ∣ ☐ ⟩◁ ;
-                      (just (w ⃗)) → ［ c ∣ v ∣ ☐ ］◁ ↦* ［ c ∣ w ∣ ☐ ］▷ ;
-                      nothing      → ［ c ∣ v ∣ ☐ ］◁ ↦* ⊠ })
-         in  tr v'
-getₜᵣ⃖ c {v} {v'} eq with inspect⊎ (run ［ c ∣ v ∣ ☐ ］◁) (λ ())
-getₜᵣ⃖ c {v} {nothing} eq | inj₁ ((x₁ , rs₁) , eq₁) with trans (subst (λ x → just (x₁ ⃖) ≡ [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x) eq₁ refl) eq
-... | ()
-getₜᵣ⃖ c {v} {just (x ⃗)} eq | inj₁ ((x₁ , rs₁) , eq₁) with trans (subst (λ x → just (x₁ ⃖) ≡ [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x) eq₁ refl) eq
-... | ()
-getₜᵣ⃖ c {v} {just (x ⃖)} eq | inj₁ ((x₁ , rs₁) , eq₁) with trans (subst (λ x → just (x₁ ⃖) ≡ [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x) eq₁ refl) eq
-... | refl = rs₁
-getₜᵣ⃖ c {v} {nothing} eq | inj₂ (inj₁ ((x₁ , rs₁) , eq₁)) with trans (subst (λ x → just (x₁ ⃗) ≡ [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x) eq₁ refl) eq
-... | ()
-getₜᵣ⃖ c {v} {just (x ⃗)} eq | inj₂ (inj₁ ((x₁ , rs₁) , eq₁)) with trans (subst (λ x → just (x₁ ⃗) ≡ [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x) eq₁ refl) eq
-... | refl = rs₁
-getₜᵣ⃖ c {v} {just (x ⃖)} eq | inj₂ (inj₁ ((x₁ , rs₁) , eq₁)) with trans (subst (λ x → just (x₁ ⃗) ≡ [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x) eq₁ refl) eq
-... | ()
-getₜᵣ⃖ c {v} {nothing} eq | inj₂ (inj₂ (rs₁ , eq₁)) with trans (subst (λ x → nothing ≡ [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x) eq₁ refl) eq
-... | refl = rs₁
-getₜᵣ⃖ c {v} {just (x ⃗)} eq | inj₂ (inj₂ (rs₁ , eq₁)) with trans (subst (λ x → nothing ≡ [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x) eq₁ refl) eq
-... | ()
-getₜᵣ⃖ c {v} {just (x ⃖)} eq | inj₂ (inj₂ (rs₁ , eq₁)) with trans (subst (λ x → nothing ≡ [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x) eq₁ refl) eq
-... | ()
-
-toState : ∀ {A B C} → (A ↔ B) → (B ↔ C) → Maybe (Val C A) → State
-toState c₁ c₂ (just (c ⃗)) = ［ c₁ ⨾ c₂ ∣ c ∣ ☐ ］▷
-toState c₁ c₂ (just (a ⃖)) = ⟨ c₁ ⨾ c₂ ∣ a ∣ ☐ ⟩◁
-toState c₁ c₂ nothing = ⊠
-
-is-stuck-toState : ∀ {A B C} → (c₁ : A ↔ B) → (c₂ : B ↔ C) → (v : Maybe (Val C A)) → is-stuck (toState c₁ c₂ v)
-is-stuck-toState c₁ c₂ (just (c ⃗)) = λ ()
-is-stuck-toState c₁ c₂ (just (a ⃖)) = λ ()
-is-stuck-toState c₁ c₂ nothing = λ ()
-
-toStateEq₁ : ∀ {A B C c} → (c₁ : A ↔ B) → (c₂ : B ↔ C) → (x : Maybe (Val C A)) → ［ c₁ ⨾ c₂ ∣ c ∣ ☐ ］▷ ≡ toState c₁ c₂ x → just (c ⃗) ≡ x
-toStateEq₁ c₁ c₂ (just (x ⃗)) refl = refl
-
-toStateEq₂ : ∀ {A B C a} → (c₁ : A ↔ B) → (c₂ : B ↔ C) → (x : Maybe (Val C A)) → ⟨ c₁ ⨾ c₂ ∣ a ∣ ☐ ⟩◁ ≡ toState c₁ c₂ x → just (a ⃖) ≡ x
-toStateEq₂ c₁ c₂ (just (x ⃖)) refl = refl
-
-toStateEq₃ : ∀ {A B C} → (c₁ : A ↔ B) → (c₂ : B ↔ C) → (x : Maybe (Val C A)) → ⊠ ≡ toState c₁ c₂ x → nothing ≡ x
-toStateEq₃ c₁ c₂ nothing refl = refl
-toStateEq₃ c₁ c₂ (just (x ⃗)) ()
-toStateEq₃ c₁ c₂ (just (x ⃖)) ()
-
 -- The abstract machine semantics is equivalent to the big-step semantics
 mutual
   eval≡interp : ∀ {A B} → (c : A ↔ B) → (v : Val A B) → eval c v ≡ interp c v
@@ -405,748 +456,213 @@ mutual
   ... | yes refl = refl
   ... | no  neq  = refl
   eval≡interp (εₓ v) (tt ⃖) = refl
-  eval≡interp (c₁ ⨾ c₂) (a ⃗) with inspect⊎ (run ⟨ c₁ ⨾ c₂ ∣ a ∣ ☐ ⟩▷) (λ ()) | interp c₁ (a ⃗) | inspect (interp c₁) (a ⃗)
-  eval≡interp (c₁ ⨾ c₂) (a ⃗) | inj₁ ((a' , rs) , eq) | just (b ⃗)  | [ eq₁ ] = lem
+  eval≡interp (c₁ ⨾ c₂) (a ⃗) with interp c₁ (a ⃗) | inspect (interp c₁) (a ⃗)
+  eval≡interp (c₁ ⨾ c₂) (a ⃗) | just (b ⃗)  | [ eq₁ ] = lem
     where
-    rs' : ⟨ c₁ ⨾ c₂ ∣ a ∣ ☐ ⟩▷ ↦* (toState c₁ c₂ (c₁ ⨾[ b ⃗]⨾ c₂))
-    rs' = loop₁⃗ c₁ b c₂ (↦⃗₃ ∷ appendκ↦* ((getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (a ⃗)) eq₁))) (λ ()) (λ ()) refl (☐⨾ c₂ • ☐))
+    rs : ⟨ c₁ ⨾ c₂ ∣ a ∣ ☐ ⟩▷ ↦* ［ c₁ ∣ b ∣ ☐⨾ c₂ • ☐ ］▷
+    rs = ↦⃗₃ ∷ appendκ↦* ((getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (a ⃗)) eq₁))) (λ ()) (λ ()) refl (☐⨾ c₂ • ☐)
+    
+    rs' : ［ c₁ ∣ b ∣ ☐⨾ c₂ • ☐ ］▷ ↦* (toState (c₁ ⨾ c₂) (eval (c₁ ⨾ c₂) (a ⃗)))
+    rs' = proj₁ (deterministic*' rs (getₜᵣ⃗ (c₁ ⨾ c₂) refl) (is-stuck-toState _ _))
 
     lem : eval (c₁ ⨾ c₂) (a ⃗) ≡ (c₁ ⨾[ b ⃗]⨾ c₂)
-    lem with deterministic* rs rs' (λ ()) (is-stuck-toState _ _ _)
-    ... | eq' = subst (λ x → [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x ≡ (c₁ ⨾[ b ⃗]⨾ c₂)) eq (toStateEq₂ c₁ c₂ (c₁ ⨾[ b ⃗]⨾ c₂) eq')
-  eval≡interp (c₁ ⨾ c₂) (a ⃗) | inj₁ ((a' , rs) , eq) | just (a₁ ⃖) | [ eq₁ ] = lem
+    lem = proj₁ (loop (len↦ rs') b) rs' refl
+  eval≡interp (c₁ ⨾ c₂) (a ⃗) | just (a₁ ⃖) | [ eq₁ ] = lem
     where
-    rs' : ⟨ c₁ ⨾ c₂ ∣ a ∣ ☐ ⟩▷ ↦* ⟨ c₁ ⨾ c₂ ∣ a₁ ∣ ☐ ⟩◁
-    rs' = ↦⃗₃ ∷ appendκ↦* ((getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (a ⃗)) eq₁))) (λ ()) (λ ()) refl (☐⨾ c₂ • ☐) ++↦ ↦⃖₃ ∷ ◾
+    rs : ⟨ c₁ ⨾ c₂ ∣ a ∣ ☐ ⟩▷ ↦* ⟨ c₁ ⨾ c₂ ∣ a₁ ∣ ☐ ⟩◁
+    rs = ↦⃗₃ ∷ appendκ↦* ((getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (a ⃗)) eq₁))) (λ ()) (λ ()) refl (☐⨾ c₂ • ☐) ++↦ ↦⃖₃ ∷ ◾
 
     lem : eval (c₁ ⨾ c₂) (a ⃗) ≡ just (a₁ ⃖)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | refl = subst (λ x → [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x ≡ just (a₁ ⃖)) eq refl
-  eval≡interp (c₁ ⨾ c₂) (a ⃗) | inj₁ ((a' , rs) , eq) | nothing     | [ eq₁ ] = lem
+    lem = eval-toState₁ rs
+  eval≡interp (c₁ ⨾ c₂) (a ⃗) | nothing     | [ eq₁ ] = lem
     where
     rs' : ⟨ c₁ ⨾ c₂ ∣ a ∣ ☐ ⟩▷ ↦* ⊠
     rs' = ↦⃗₃ ∷ appendκ↦*⊠ ((getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (a ⃗)) eq₁))) (λ ()) (☐⨾ c₂ • ☐)
 
     lem : eval (c₁ ⨾ c₂) (a ⃗) ≡ nothing
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⨾ c₂) (a ⃗) | inj₂ (inj₁ ((c , rs) , eq)) | just (b ⃗)  | [ eq₁ ] = lem
-    where
-    rs' : ⟨ c₁ ⨾ c₂ ∣ a ∣ ☐ ⟩▷ ↦* (toState c₁ c₂ (c₁ ⨾[ b ⃗]⨾ c₂))
-    rs' = loop₁⃗ c₁ b c₂ (↦⃗₃ ∷ appendκ↦* ((getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (a ⃗)) eq₁))) (λ ()) (λ ()) refl (☐⨾ c₂ • ☐))
-
-    lem : eval (c₁ ⨾ c₂) (a ⃗) ≡ (c₁ ⨾[ b ⃗]⨾ c₂)
-    lem with deterministic* rs rs' (λ ()) (is-stuck-toState _ _ _)
-    ... | eq' = subst (λ x → [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x ≡ (c₁ ⨾[ b ⃗]⨾ c₂)) eq (toStateEq₁ c₁ c₂ (c₁ ⨾[ b ⃗]⨾ c₂) eq')
-  eval≡interp (c₁ ⨾ c₂) (a ⃗) | inj₂ (inj₁ ((c , rs) , eq)) | just (a' ⃖) | [ eq₁ ] = lem
-    where
-    rs' : ⟨ c₁ ⨾ c₂ ∣ a ∣ ☐ ⟩▷ ↦* ⟨ c₁ ⨾ c₂ ∣ a' ∣ ☐ ⟩◁
-    rs' = ↦⃗₃ ∷ appendκ↦* ((getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (a ⃗)) eq₁))) (λ ()) (λ ()) refl (☐⨾ c₂ • ☐) ++↦ ↦⃖₃ ∷ ◾
-
-    lem : eval (c₁ ⨾ c₂) (a ⃗) ≡ just (a' ⃖)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⨾ c₂) (a ⃗) | inj₂ (inj₁ ((c , rs) , eq)) | nothing     | [ eq₁ ] = lem
-    where
-    rs' : ⟨ c₁ ⨾ c₂ ∣ a ∣ ☐ ⟩▷ ↦* ⊠
-    rs' = ↦⃗₃ ∷ appendκ↦*⊠ ((getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (a ⃗)) eq₁))) (λ ()) (☐⨾ c₂ • ☐)
-
-    lem : eval (c₁ ⨾ c₂) (a ⃗) ≡ nothing
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⨾ c₂) (a ⃗) | inj₂ (inj₂ (rs , eq)) | just (b ⃗)  | [ eq₁ ] = lem
-    where
-    rs' : ⟨ c₁ ⨾ c₂ ∣ a ∣ ☐ ⟩▷ ↦* (toState c₁ c₂ (c₁ ⨾[ b ⃗]⨾ c₂))
-    rs' = loop₁⃗ c₁ b c₂ (↦⃗₃ ∷ appendκ↦* ((getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (a ⃗)) eq₁))) (λ ()) (λ ()) refl (☐⨾ c₂ • ☐))
-
-    lem : eval (c₁ ⨾ c₂) (a ⃗) ≡ (c₁ ⨾[ b ⃗]⨾ c₂)
-    lem with deterministic* rs rs' (λ ()) (is-stuck-toState _ _ _)
-    ... | eq' = subst (λ x → [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x ≡ (c₁ ⨾[ b ⃗]⨾ c₂)) eq (toStateEq₃ c₁ c₂ (c₁ ⨾[ b ⃗]⨾ c₂) eq')
-  eval≡interp (c₁ ⨾ c₂) (a ⃗) | inj₂ (inj₂ (rs , eq)) | just (a' ⃖) | [ eq₁ ] = lem
-    where
-    rs' : ⟨ c₁ ⨾ c₂ ∣ a ∣ ☐ ⟩▷ ↦* ⟨ c₁ ⨾ c₂ ∣ a' ∣ ☐ ⟩◁
-    rs' = ↦⃗₃ ∷ appendκ↦* ((getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (a ⃗)) eq₁))) (λ ()) (λ ()) refl (☐⨾ c₂ • ☐) ++↦ ↦⃖₃ ∷ ◾
-
-    lem : eval (c₁ ⨾ c₂) (a ⃗) ≡ just (a' ⃖)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⨾ c₂) (a ⃗) | inj₂ (inj₂ (rs , eq)) | nothing     | [ eq₁ ] = lem
-    where
-    rs' : ⟨ c₁ ⨾ c₂ ∣ a ∣ ☐ ⟩▷ ↦* ⊠
-    rs' = ↦⃗₃ ∷ appendκ↦*⊠ ((getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (a ⃗)) eq₁))) (λ ()) (☐⨾ c₂ • ☐)
-
-    lem : eval (c₁ ⨾ c₂) (a ⃗) ≡ nothing
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | refl = subst (λ x → [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x ≡ nothing) eq refl
-  eval≡interp (c₁ ⨾ c₂) (c ⃖) with inspect⊎ (run ［ c₁ ⨾ c₂ ∣ c ∣ ☐ ］◁) (λ ()) | interp c₂ (c ⃖) | inspect (interp c₂) (c ⃖)
-  eval≡interp (c₁ ⨾ c₂) (c ⃖) | inj₁ ((a , rs) , eq) | just (c' ⃗) | [ eq' ] = lem
+    lem = eval-toState₁ rs'
+  eval≡interp (c₁ ⨾ c₂) (c ⃖) with interp c₂ (c ⃖) | inspect (interp c₂) (c ⃖)
+  eval≡interp (c₁ ⨾ c₂) (c ⃖) | just (c' ⃗) | [ eq' ] = lem
     where
     rs' : ［ c₁ ⨾ c₂ ∣ c ∣ ☐ ］◁ ↦* ［ c₁ ⨾ c₂ ∣ c' ∣ ☐ ］▷
     rs' = ↦⃖₁₀ ∷ appendκ↦* ((getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (c ⃖)) eq'))) (λ ()) (λ ()) refl (c₁ ⨾☐• ☐) ++↦ ↦⃗₁₀ ∷ ◾
 
     lem : eval (c₁ ⨾ c₂) (c ⃖) ≡ just (c' ⃗)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⨾ c₂) (c ⃖) | inj₁ ((a , rs) , eq) | just (b ⃖)  | [ eq' ] = lem
+    lem = eval-toState₂ rs'
+  eval≡interp (c₁ ⨾ c₂) (c ⃖) | just (b ⃖)  | [ eq' ] = lem
     where
-    rs' : ［ c₁ ⨾ c₂ ∣ c ∣ ☐ ］◁ ↦* (toState c₁ c₂ (c₁ ⨾[ b ⃖]⨾ c₂))
-    rs' = loop₂⃖ c₁ b c₂ (↦⃖₁₀ ∷ appendκ↦* ((getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (c ⃖)) eq'))) (λ ()) (λ ()) refl (c₁ ⨾☐• ☐) ++↦ ↦⃖₇ ∷ ◾)
+    rs : ［ c₁ ⨾ c₂ ∣ c ∣ ☐ ］◁ ↦* ⟨ c₂ ∣ b ∣ c₁ ⨾☐• ☐ ⟩◁
+    rs = ↦⃖₁₀ ∷ appendκ↦* ((getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (c ⃖)) eq'))) (λ ()) (λ ()) refl (c₁ ⨾☐• ☐)
+    
+    rs' : ⟨ c₂ ∣ b ∣ c₁ ⨾☐• ☐ ⟩◁ ↦* (toState (c₁ ⨾ c₂) (eval (c₁ ⨾ c₂) (c ⃖)))
+    rs' = proj₁ (deterministic*' rs (getₜᵣ⃖ (c₁ ⨾ c₂) refl) (is-stuck-toState _ _))
 
     lem : eval (c₁ ⨾ c₂) (c ⃖) ≡ (c₁ ⨾[ b ⃖]⨾ c₂)
-    lem with deterministic* rs rs' (λ ()) (is-stuck-toState _ _ _)
-    ... | eq' = subst (λ x → [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x ≡ (c₁ ⨾[ b ⃖]⨾ c₂)) eq (toStateEq₂ c₁ c₂ (c₁ ⨾[ b ⃖]⨾ c₂) eq')
-  eval≡interp (c₁ ⨾ c₂) (c ⃖) | inj₁ ((a , rs) , eq) | nothing     | [ eq' ] = lem
+    lem = proj₂ (loop (len↦ rs') b) rs' refl
+  eval≡interp (c₁ ⨾ c₂) (c ⃖) | nothing     | [ eq' ] = lem
     where
     rs' : ［ c₁ ⨾ c₂ ∣ c ∣ ☐ ］◁ ↦* ⊠
     rs' = ↦⃖₁₀ ∷ appendκ↦*⊠ ((getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (c ⃖)) eq'))) (λ ()) (c₁ ⨾☐• ☐)
 
     lem : eval (c₁ ⨾ c₂) (c ⃖) ≡ nothing
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⨾ c₂) (c ⃖) | inj₂ (inj₁ ((c' , rs) , eq)) | just (c'' ⃗) | [ eq' ] = lem
-    where
-    rs' : ［ c₁ ⨾ c₂ ∣ c ∣ ☐ ］◁ ↦* ［ c₁ ⨾ c₂ ∣ c'' ∣ ☐ ］▷
-    rs' = ↦⃖₁₀ ∷ appendκ↦* ((getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (c ⃖)) eq'))) (λ ()) (λ ()) refl (c₁ ⨾☐• ☐) ++↦ ↦⃗₁₀ ∷ ◾
-
-    lem : eval (c₁ ⨾ c₂) (c ⃖) ≡ just (c'' ⃗)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | refl = subst (λ x → [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x ≡ just (c'' ⃗)) eq refl
-  eval≡interp (c₁ ⨾ c₂) (c ⃖) | inj₂ (inj₁ ((c' , rs) , eq)) | just (b ⃖)   | [ eq' ] = lem
-    where
-    rs' : ［ c₁ ⨾ c₂ ∣ c ∣ ☐ ］◁ ↦* (toState c₁ c₂ (c₁ ⨾[ b ⃖]⨾ c₂))
-    rs' = loop₂⃖ c₁ b c₂ (↦⃖₁₀ ∷ appendκ↦* ((getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (c ⃖)) eq'))) (λ ()) (λ ()) refl (c₁ ⨾☐• ☐) ++↦ ↦⃖₇ ∷ ◾)
-
-    lem : eval (c₁ ⨾ c₂) (c ⃖) ≡ (c₁ ⨾[ b ⃖]⨾ c₂)
-    lem with deterministic* rs rs' (λ ()) (is-stuck-toState _ _ _)
-    ... | eq' = subst (λ x → [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x ≡ (c₁ ⨾[ b ⃖]⨾ c₂)) eq (toStateEq₁ c₁ c₂ (c₁ ⨾[ b ⃖]⨾ c₂) eq')
-  eval≡interp (c₁ ⨾ c₂) (c ⃖) | inj₂ (inj₁ ((c' , rs) , eq)) | nothing      | [ eq' ] = lem
-    where
-    rs' : ［ c₁ ⨾ c₂ ∣ c ∣ ☐ ］◁ ↦* ⊠
-    rs' = ↦⃖₁₀ ∷ appendκ↦*⊠ ((getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (c ⃖)) eq'))) (λ ()) (c₁ ⨾☐• ☐)
-
-    lem : eval (c₁ ⨾ c₂) (c ⃖) ≡ nothing
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⨾ c₂) (c ⃖) | inj₂ (inj₂ (rs , eq)) | just (c' ⃗) | [ eq' ] = lem
-    where
-    rs' : ［ c₁ ⨾ c₂ ∣ c ∣ ☐ ］◁ ↦* ［ c₁ ⨾ c₂ ∣ c' ∣ ☐ ］▷
-    rs' = ↦⃖₁₀ ∷ appendκ↦* ((getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (c ⃖)) eq'))) (λ ()) (λ ()) refl (c₁ ⨾☐• ☐) ++↦ ↦⃗₁₀ ∷ ◾
-
-    lem : eval (c₁ ⨾ c₂) (c ⃖) ≡ just (c' ⃗)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⨾ c₂) (c ⃖) | inj₂ (inj₂ (rs , eq)) | just (b ⃖)  | [ eq' ] = lem
-    where
-    rs' : ［ c₁ ⨾ c₂ ∣ c ∣ ☐ ］◁ ↦* (toState c₁ c₂ (c₁ ⨾[ b ⃖]⨾ c₂))
-    rs' = loop₂⃖ c₁ b c₂ (↦⃖₁₀ ∷ appendκ↦* ((getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (c ⃖)) eq'))) (λ ()) (λ ()) refl (c₁ ⨾☐• ☐) ++↦ ↦⃖₇ ∷ ◾)
-
-    lem : eval (c₁ ⨾ c₂) (c ⃖) ≡ (c₁ ⨾[ b ⃖]⨾ c₂)
-    lem with deterministic* rs rs' (λ ()) (is-stuck-toState _ _ _)
-    ... | eq' = subst (λ x → [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x ≡ (c₁ ⨾[ b ⃖]⨾ c₂)) eq (toStateEq₃ c₁ c₂ (c₁ ⨾[ b ⃖]⨾ c₂) eq')
-  eval≡interp (c₁ ⨾ c₂) (c ⃖) | inj₂ (inj₂ (rs , eq)) | nothing     | [ eq' ] = lem
-    where
-    rs' : ［ c₁ ⨾ c₂ ∣ c ∣ ☐ ］◁ ↦* ⊠
-    rs' = ↦⃖₁₀ ∷ appendκ↦*⊠ ((getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (c ⃖)) eq'))) (λ ()) (c₁ ⨾☐• ☐)
-
-    lem : eval (c₁ ⨾ c₂) (c ⃖) ≡ nothing
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | refl = subst (λ x → [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x ≡ nothing) eq refl
-  eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃗) with inspect⊎ (run ⟨ c₁ ⊕ c₂ ∣ inj₁ x ∣ ☐ ⟩▷) (λ ()) | interp c₁ (x ⃗) | inspect (interp c₁) (x ⃗)
-  eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃗) | inj₁ ((x' , rs) , eq) | just (x₁ ⃗) | [ eq₁ ] = lem
+    lem = eval-toState₂ rs'
+  eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃗) with interp c₁ (x ⃗) | inspect (interp c₁) (x ⃗)
+  eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃗) | just (x₁ ⃗) | [ eq₁ ] = eval-toState₁ rs'
     where
     rs' : ⟨ c₁ ⊕ c₂ ∣ inj₁ x ∣ ☐ ⟩▷ ↦* ［ c₁ ⊕ c₂ ∣ inj₁ x₁ ∣ ☐ ］▷
     rs' = ↦⃗₄ ∷ appendκ↦* (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (x ⃗)) eq₁)) (λ ()) (λ ()) refl (☐⊕ c₂ • ☐) ++↦ ↦⃗₁₁ ∷ ◾
-
-    lem : eval (c₁ ⊕ c₂) (inj₁ x ⃗) ≡ just (inj₁ x₁ ⃗)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()    
-  eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃗) | inj₁ ((x' , rs) , eq) | just (x₁ ⃖) | [ eq₁ ] = lem
+  eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃗) | just (x₁ ⃖) | [ eq₁ ] = eval-toState₁ rs'
     where
     rs' : ⟨ c₁ ⊕ c₂ ∣ inj₁ x ∣ ☐ ⟩▷ ↦* ⟨ c₁ ⊕ c₂ ∣ inj₁ x₁ ∣ ☐ ⟩◁
     rs' = ↦⃗₄ ∷ appendκ↦* (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (x ⃗)) eq₁)) (λ ()) (λ ()) refl (☐⊕ c₂ • ☐) ++↦ ↦⃖₄ ∷ ◾
-
-    lem : eval (c₁ ⊕ c₂) (inj₁ x ⃗) ≡ just (inj₁ x₁ ⃖)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | refl = subst (λ x → [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x ≡ just (inj₁ x₁ ⃖)) eq refl
-  eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃗) | inj₁ ((x' , rs) , eq) | nothing      | [ eq₁ ] = lem
+  eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃗) | nothing      | [ eq₁ ] = eval-toState₁ rs'
     where
     rs' : ⟨ c₁ ⊕ c₂ ∣ inj₁ x ∣ ☐ ⟩▷ ↦* ⊠
     rs' = ↦⃗₄ ∷ appendκ↦*⊠ (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (x ⃗)) eq₁)) (λ ()) (☐⊕ c₂ • ☐)
-
-    lem : eval (c₁ ⊕ c₂) (inj₁ x ⃗) ≡ nothing
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃗) | inj₂ (inj₁ ((x' , rs) , eq)) | just (x₁ ⃗) | [ eq₁ ] = lem
-    where
-    rs' : ⟨ c₁ ⊕ c₂ ∣ inj₁ x ∣ ☐ ⟩▷ ↦* ［ c₁ ⊕ c₂ ∣ inj₁ x₁ ∣ ☐ ］▷
-    rs' = ↦⃗₄ ∷ appendκ↦* (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (x ⃗)) eq₁)) (λ ()) (λ ()) refl (☐⊕ c₂ • ☐) ++↦ ↦⃗₁₁ ∷ ◾
-    
-    lem : eval (c₁ ⊕ c₂) (inj₁ x ⃗) ≡ just (inj₁ x₁ ⃗)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | refl = subst (λ x → [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x ≡ just (inj₁ x₁ ⃗)) eq refl
-  eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃗) | inj₂ (inj₁ ((x' , rs) , eq)) | just (x₁ ⃖) | [ eq₁ ] = lem
-    where
-    rs' : ⟨ c₁ ⊕ c₂ ∣ inj₁ x ∣ ☐ ⟩▷ ↦* ⟨ c₁ ⊕ c₂ ∣ inj₁ x₁ ∣ ☐ ⟩◁
-    rs' = ↦⃗₄ ∷ appendκ↦* (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (x ⃗)) eq₁)) (λ ()) (λ ()) refl (☐⊕ c₂ • ☐) ++↦ ↦⃖₄ ∷ ◾
-
-    lem : eval (c₁ ⊕ c₂) (inj₁ x ⃗) ≡ just (inj₁ x₁ ⃖)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃗) | inj₂ (inj₁ ((x' , rs) , eq)) | nothing      | [ eq₁ ] = lem
-    where
-    rs' : ⟨ c₁ ⊕ c₂ ∣ inj₁ x ∣ ☐ ⟩▷ ↦* ⊠
-    rs' = ↦⃗₄ ∷ appendκ↦*⊠ (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (x ⃗)) eq₁)) (λ ()) (☐⊕ c₂ • ☐)
-
-    lem : eval (c₁ ⊕ c₂) (inj₁ x ⃗) ≡ nothing
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | () 
-  eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃗) | inj₂ (inj₂ (rs , eq)) | just (x₁ ⃗) | [ eq₁ ] = lem
-    where
-    rs' : ⟨ c₁ ⊕ c₂ ∣ inj₁ x ∣ ☐ ⟩▷ ↦* ［ c₁ ⊕ c₂ ∣ inj₁ x₁ ∣ ☐ ］▷
-    rs' = ↦⃗₄ ∷ appendκ↦* (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (x ⃗)) eq₁)) (λ ()) (λ ()) refl (☐⊕ c₂ • ☐) ++↦ ↦⃗₁₁ ∷ ◾
-    
-    lem : eval (c₁ ⊕ c₂) (inj₁ x ⃗) ≡ just (inj₁ x₁ ⃗)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃗) | inj₂ (inj₂ (rs , eq)) | just (x₁ ⃖) | [ eq₁ ] = lem
-    where
-    rs' : ⟨ c₁ ⊕ c₂ ∣ inj₁ x ∣ ☐ ⟩▷ ↦* ⟨ c₁ ⊕ c₂ ∣ inj₁ x₁ ∣ ☐ ⟩◁
-    rs' = ↦⃗₄ ∷ appendκ↦* (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (x ⃗)) eq₁)) (λ ()) (λ ()) refl (☐⊕ c₂ • ☐) ++↦ ↦⃖₄ ∷ ◾
-
-    lem : eval (c₁ ⊕ c₂) (inj₁ x ⃗) ≡ just (inj₁ x₁ ⃖)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃗) | inj₂ (inj₂ (rs , eq)) | nothing      | [ eq₁ ] = lem
-    where
-    rs' : ⟨ c₁ ⊕ c₂ ∣ inj₁ x ∣ ☐ ⟩▷ ↦* ⊠
-    rs' = ↦⃗₄ ∷ appendκ↦*⊠ (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (x ⃗)) eq₁)) (λ ()) (☐⊕ c₂ • ☐)
-
-    lem : eval (c₁ ⊕ c₂) (inj₁ x ⃗) ≡ nothing
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | refl = subst (λ x → [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x ≡ nothing) eq refl
-  eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃗) with inspect⊎ (run ⟨ c₁ ⊕ c₂ ∣ inj₂ y ∣ ☐ ⟩▷) (λ ()) | interp c₂ (y ⃗) | inspect (interp c₂) (y ⃗)
-  eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃗) | inj₁ ((y' , rs) , eq) | just (y₁ ⃗) | [ eq₁ ] = lem
+  eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃗) with interp c₂ (y ⃗) | inspect (interp c₂) (y ⃗)
+  eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃗) | just (y₁ ⃗) | [ eq₁ ] = eval-toState₁ rs'
     where
     rs' : ⟨ c₁ ⊕ c₂ ∣ inj₂ y ∣ ☐ ⟩▷ ↦* ［ c₁ ⊕ c₂ ∣ inj₂ y₁ ∣ ☐ ］▷
     rs' = ↦⃗₅ ∷ appendκ↦* (getₜᵣ⃗ c₂ (trans (eval≡interp c₂ (y ⃗)) eq₁)) (λ ()) (λ ()) refl (c₁ ⊕☐• ☐) ++↦ ↦⃗₁₂ ∷ ◾
-    
-    lem : eval (c₁ ⊕ c₂) (inj₂ y ⃗) ≡ just (inj₂ y₁ ⃗)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃗) | inj₁ ((y' , rs) , eq) | just (y₁ ⃖) | [ eq₁ ] = lem
+  eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃗) | just (y₁ ⃖) | [ eq₁ ] = eval-toState₁ rs'
     where
     rs' : ⟨ c₁ ⊕ c₂ ∣ inj₂ y ∣ ☐ ⟩▷ ↦* ⟨ c₁ ⊕ c₂ ∣ inj₂ y₁ ∣ ☐ ⟩◁
     rs' = ↦⃗₅ ∷ appendκ↦* (getₜᵣ⃗ c₂ (trans (eval≡interp c₂ (y ⃗)) eq₁)) (λ ()) (λ ()) refl (c₁ ⊕☐• ☐) ++↦ ↦⃖₅ ∷ ◾
-    
-    lem : eval (c₁ ⊕ c₂) (inj₂ y ⃗) ≡ just (inj₂ y₁ ⃖)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | refl = subst (λ x → [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x ≡ just (inj₂ y₁ ⃖)) eq refl
-  eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃗) | inj₁ ((y' , rs) , eq) | nothing      | [ eq₁ ] = lem
+  eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃗) | nothing      | [ eq₁ ] = eval-toState₁ rs'
     where
     rs' : ⟨ c₁ ⊕ c₂ ∣ inj₂ y ∣ ☐ ⟩▷ ↦* ⊠
     rs' = ↦⃗₅ ∷ appendκ↦*⊠ (getₜᵣ⃗ c₂ (trans (eval≡interp c₂ (y ⃗)) eq₁)) (λ ()) (c₁ ⊕☐• ☐)
-    
-    lem : eval (c₁ ⊕ c₂) (inj₂ y ⃗) ≡ nothing
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃗) | inj₂ (inj₁ ((y' , rs) , eq)) | just (y₁ ⃗) | [ eq₁ ] = lem
-    where
-    rs' : ⟨ c₁ ⊕ c₂ ∣ inj₂ y ∣ ☐ ⟩▷ ↦* ［ c₁ ⊕ c₂ ∣ inj₂ y₁ ∣ ☐ ］▷
-    rs' = ↦⃗₅ ∷ appendκ↦* (getₜᵣ⃗ c₂ (trans (eval≡interp c₂ (y ⃗)) eq₁)) (λ ()) (λ ()) refl (c₁ ⊕☐• ☐) ++↦ ↦⃗₁₂ ∷ ◾
-    
-    lem : eval (c₁ ⊕ c₂) (inj₂ y ⃗) ≡ just (inj₂ y₁ ⃗)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | refl = subst (λ x → [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x ≡ just (inj₂ y₁ ⃗)) eq refl
-  eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃗) | inj₂ (inj₁ ((y' , rs) , eq)) | just (y₁ ⃖) | [ eq₁ ] = lem
-    where
-    rs' : ⟨ c₁ ⊕ c₂ ∣ inj₂ y ∣ ☐ ⟩▷ ↦* ⟨ c₁ ⊕ c₂ ∣ inj₂ y₁ ∣ ☐ ⟩◁
-    rs' = ↦⃗₅ ∷ appendκ↦* (getₜᵣ⃗ c₂ (trans (eval≡interp c₂ (y ⃗)) eq₁)) (λ ()) (λ ()) refl (c₁ ⊕☐• ☐) ++↦ ↦⃖₅ ∷ ◾
-    
-    lem : eval (c₁ ⊕ c₂) (inj₂ y ⃗) ≡ just (inj₂ y₁ ⃖)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃗) | inj₂ (inj₁ ((y' , rs) , eq)) | nothing      | [ eq₁ ] = lem
-    where
-    rs' : ⟨ c₁ ⊕ c₂ ∣ inj₂ y ∣ ☐ ⟩▷ ↦* ⊠
-    rs' = ↦⃗₅ ∷ appendκ↦*⊠ (getₜᵣ⃗ c₂ (trans (eval≡interp c₂ (y ⃗)) eq₁)) (λ ()) (c₁ ⊕☐• ☐)
-    
-    lem : eval (c₁ ⊕ c₂) (inj₂ y ⃗) ≡ nothing
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃗) | inj₂ (inj₂ (rs , eq)) | just (y₁ ⃗) | [ eq₁ ] = lem
-    where
-    rs' : ⟨ c₁ ⊕ c₂ ∣ inj₂ y ∣ ☐ ⟩▷ ↦* ［ c₁ ⊕ c₂ ∣ inj₂ y₁ ∣ ☐ ］▷
-    rs' = ↦⃗₅ ∷ appendκ↦* (getₜᵣ⃗ c₂ (trans (eval≡interp c₂ (y ⃗)) eq₁)) (λ ()) (λ ()) refl (c₁ ⊕☐• ☐) ++↦ ↦⃗₁₂ ∷ ◾
-    
-    lem : eval (c₁ ⊕ c₂) (inj₂ y ⃗) ≡ just (inj₂ y₁ ⃗)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃗) | inj₂ (inj₂ (rs , eq)) | just (y₁ ⃖) | [ eq₁ ] = lem
-    where
-    rs' : ⟨ c₁ ⊕ c₂ ∣ inj₂ y ∣ ☐ ⟩▷ ↦* ⟨ c₁ ⊕ c₂ ∣ inj₂ y₁ ∣ ☐ ⟩◁
-    rs' = ↦⃗₅ ∷ appendκ↦* (getₜᵣ⃗ c₂ (trans (eval≡interp c₂ (y ⃗)) eq₁)) (λ ()) (λ ()) refl (c₁ ⊕☐• ☐) ++↦ ↦⃖₅ ∷ ◾
-    
-    lem : eval (c₁ ⊕ c₂) (inj₂ y ⃗) ≡ just (inj₂ y₁ ⃖)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃗) | inj₂ (inj₂ (rs , eq)) | nothing     | [ eq₁ ] = lem
-    where
-    rs' : ⟨ c₁ ⊕ c₂ ∣ inj₂ y ∣ ☐ ⟩▷ ↦* ⊠
-    rs' = ↦⃗₅ ∷ appendκ↦*⊠ (getₜᵣ⃗ c₂ (trans (eval≡interp c₂ (y ⃗)) eq₁)) (λ ()) (c₁ ⊕☐• ☐)
-    
-    lem : eval (c₁ ⊕ c₂) (inj₂ y ⃗) ≡ nothing
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | refl = subst (λ x → [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x ≡ nothing) eq refl
-  eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃖) with inspect⊎ (run ［ c₁ ⊕ c₂ ∣ inj₁ x ∣ ☐ ］◁) (λ ()) | interp c₁ (x ⃖) | inspect (interp c₁) (x ⃖)
-  eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃖) | inj₁ ((x' , rs) , eq) | just (x₁ ⃗) | [ eq₁ ] = lem
+  eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃖) with interp c₁ (x ⃖) | inspect (interp c₁) (x ⃖)
+  eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃖) | just (x₁ ⃗) | [ eq₁ ] = eval-toState₂ rs'
     where
     rs' : ［ c₁ ⊕ c₂ ∣ inj₁ x ∣ ☐ ］◁ ↦* ［ c₁ ⊕ c₂ ∣ inj₁ x₁ ∣ ☐ ］▷
     rs' = ↦⃖₁₁ ∷ appendκ↦* (getₜᵣ⃖ c₁ (trans (eval≡interp c₁ (x ⃖)) eq₁)) (λ ()) (λ ()) refl (☐⊕ c₂ • ☐) ++↦ ↦⃗₁₁ ∷ ◾
-
-    lem : eval (c₁ ⊕ c₂) (inj₁ x ⃖) ≡ just (inj₁ x₁ ⃗)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃖) | inj₁ ((x' , rs) , eq) | just (x₁ ⃖) | [ eq₁ ] = lem
+  eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃖) | just (x₁ ⃖) | [ eq₁ ] = eval-toState₂ rs'
     where
     rs' : ［ c₁ ⊕ c₂ ∣ inj₁ x ∣ ☐ ］◁ ↦* ⟨ c₁ ⊕ c₂ ∣ inj₁ x₁ ∣ ☐ ⟩◁
     rs' = ↦⃖₁₁ ∷ appendκ↦* (getₜᵣ⃖ c₁ (trans (eval≡interp c₁ (x ⃖)) eq₁)) (λ ()) (λ ()) refl (☐⊕ c₂ • ☐) ++↦ ↦⃖₄ ∷ ◾
-
-    lem : eval (c₁ ⊕ c₂) (inj₁ x ⃖) ≡ just (inj₁ x₁ ⃖)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | refl = subst (λ x → [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x ≡ just (inj₁ x₁ ⃖)) eq refl
-  eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃖) | inj₁ ((x' , rs) , eq) | nothing     | [ eq₁ ] = lem
+  eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃖) | nothing     | [ eq₁ ] = eval-toState₂ rs'
     where
     rs' : ［ c₁ ⊕ c₂ ∣ inj₁ x ∣ ☐ ］◁ ↦* ⊠
     rs' = ↦⃖₁₁ ∷ appendκ↦*⊠ (getₜᵣ⃖ c₁ (trans (eval≡interp c₁ (x ⃖)) eq₁)) (λ ()) (☐⊕ c₂ • ☐)
-    
-    lem : eval (c₁ ⊕ c₂) (inj₁ x ⃖) ≡ nothing
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃖) | inj₂ (inj₁ ((x' , rs) , eq)) | just (x₁ ⃗) | [ eq₁ ] = lem
-    where
-    rs' : ［ c₁ ⊕ c₂ ∣ inj₁ x ∣ ☐ ］◁ ↦* ［ c₁ ⊕ c₂ ∣ inj₁ x₁ ∣ ☐ ］▷
-    rs' = ↦⃖₁₁ ∷ appendκ↦* (getₜᵣ⃖ c₁ (trans (eval≡interp c₁ (x ⃖)) eq₁)) (λ ()) (λ ()) refl (☐⊕ c₂ • ☐) ++↦ ↦⃗₁₁ ∷ ◾
-
-    lem : eval (c₁ ⊕ c₂) (inj₁ x ⃖) ≡ just (inj₁ x₁ ⃗)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | refl = subst (λ x → [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x ≡ just (inj₁ x₁ ⃗)) eq refl
-  eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃖) | inj₂ (inj₁ ((x' , rs) , eq)) | just (x₁ ⃖) | [ eq₁ ] = lem
-    where
-    rs' : ［ c₁ ⊕ c₂ ∣ inj₁ x ∣ ☐ ］◁ ↦* ⟨ c₁ ⊕ c₂ ∣ inj₁ x₁ ∣ ☐ ⟩◁
-    rs' = ↦⃖₁₁ ∷ appendκ↦* (getₜᵣ⃖ c₁ (trans (eval≡interp c₁ (x ⃖)) eq₁)) (λ ()) (λ ()) refl (☐⊕ c₂ • ☐) ++↦ ↦⃖₄ ∷ ◾
-
-    lem : eval (c₁ ⊕ c₂) (inj₁ x ⃖) ≡ just (inj₁ x₁ ⃖)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃖) | inj₂ (inj₁ ((x' , rs) , eq)) | nothing     | [ eq₁ ] = lem
-    where
-    rs' : ［ c₁ ⊕ c₂ ∣ inj₁ x ∣ ☐ ］◁ ↦* ⊠
-    rs' = ↦⃖₁₁ ∷ appendκ↦*⊠ (getₜᵣ⃖ c₁ (trans (eval≡interp c₁ (x ⃖)) eq₁)) (λ ()) (☐⊕ c₂ • ☐)
-    
-    lem : eval (c₁ ⊕ c₂) (inj₁ x ⃖) ≡ nothing
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃖) | inj₂ (inj₂ (rs , eq)) | just (x₁ ⃗) | [ eq₁ ] = lem
-    where
-    rs' : ［ c₁ ⊕ c₂ ∣ inj₁ x ∣ ☐ ］◁ ↦* ［ c₁ ⊕ c₂ ∣ inj₁ x₁ ∣ ☐ ］▷
-    rs' = ↦⃖₁₁ ∷ appendκ↦* (getₜᵣ⃖ c₁ (trans (eval≡interp c₁ (x ⃖)) eq₁)) (λ ()) (λ ()) refl (☐⊕ c₂ • ☐) ++↦ ↦⃗₁₁ ∷ ◾
-
-    lem : eval (c₁ ⊕ c₂) (inj₁ x ⃖) ≡ just (inj₁ x₁ ⃗)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃖) | inj₂ (inj₂ (rs , eq)) | just (x₁ ⃖) | [ eq₁ ] = lem
-    where
-    rs' : ［ c₁ ⊕ c₂ ∣ inj₁ x ∣ ☐ ］◁ ↦* ⟨ c₁ ⊕ c₂ ∣ inj₁ x₁ ∣ ☐ ⟩◁
-    rs' = ↦⃖₁₁ ∷ appendκ↦* (getₜᵣ⃖ c₁ (trans (eval≡interp c₁ (x ⃖)) eq₁)) (λ ()) (λ ()) refl (☐⊕ c₂ • ☐) ++↦ ↦⃖₄ ∷ ◾
-
-    lem : eval (c₁ ⊕ c₂) (inj₁ x ⃖) ≡ just (inj₁ x₁ ⃖)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃖) | inj₂ (inj₂ (rs , eq)) | nothing     | [ eq₁ ] = lem
-    where
-    rs' : ［ c₁ ⊕ c₂ ∣ inj₁ x ∣ ☐ ］◁ ↦* ⊠
-    rs' = ↦⃖₁₁ ∷ appendκ↦*⊠ (getₜᵣ⃖ c₁ (trans (eval≡interp c₁ (x ⃖)) eq₁)) (λ ()) (☐⊕ c₂ • ☐)
-    
-    lem : eval (c₁ ⊕ c₂) (inj₁ x ⃖) ≡ nothing
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | refl = subst (λ x → [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x ≡ nothing) eq refl
-  eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃖) with inspect⊎ (run ［ c₁ ⊕ c₂ ∣ inj₂ y ∣ ☐ ］◁) (λ ()) | interp c₂ (y ⃖) | inspect (interp c₂) (y ⃖)
-  eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃖) | inj₁ ((x' , rs) , eq) | just (y₁ ⃗) | [ eq₁ ] = lem
+  eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃖) with interp c₂ (y ⃖) | inspect (interp c₂) (y ⃖)
+  eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃖) | just (y₁ ⃗) | [ eq₁ ] = eval-toState₂ rs'
     where
     rs' : ［ c₁ ⊕ c₂ ∣ inj₂ y ∣ ☐ ］◁ ↦* ［ c₁ ⊕ c₂ ∣ inj₂ y₁ ∣ ☐ ］▷
     rs' = ↦⃖₁₂ ∷ appendκ↦* (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (y ⃖)) eq₁)) (λ ()) (λ ()) refl (c₁ ⊕☐• ☐) ++↦ ↦⃗₁₂ ∷ ◾
-
-    lem : eval (c₁ ⊕ c₂) (inj₂ y ⃖) ≡ just (inj₂ y₁ ⃗)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃖) | inj₁ ((x' , rs) , eq) | just (y₁ ⃖) | [ eq₁ ] = lem
+  eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃖) | just (y₁ ⃖) | [ eq₁ ] = eval-toState₂ rs'
     where
     rs' : ［ c₁ ⊕ c₂ ∣ inj₂ y ∣ ☐ ］◁ ↦* ⟨ c₁ ⊕ c₂ ∣ inj₂ y₁ ∣ ☐ ⟩◁
     rs' = ↦⃖₁₂ ∷ appendκ↦* (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (y ⃖)) eq₁)) (λ ()) (λ ()) refl (c₁ ⊕☐• ☐) ++↦ ↦⃖₅ ∷ ◾
-
-    lem : eval (c₁ ⊕ c₂) (inj₂ y ⃖) ≡ just (inj₂ y₁ ⃖)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | refl = subst (λ x → [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x ≡ just (inj₂ y₁ ⃖)) eq refl
-  eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃖) | inj₁ ((x' , rs) , eq) | nothing     | [ eq₁ ] = lem
+  eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃖) | nothing     | [ eq₁ ] = eval-toState₂ rs'
     where
     rs' : ［ c₁ ⊕ c₂ ∣ inj₂ y ∣ ☐ ］◁ ↦* ⊠
     rs' = ↦⃖₁₂ ∷ appendκ↦*⊠ (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (y ⃖)) eq₁)) (λ ()) (c₁ ⊕☐• ☐)
-    
-    lem : eval (c₁ ⊕ c₂) (inj₂ y ⃖) ≡ nothing
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃖) | inj₂ (inj₁ ((x' , rs) , eq)) | just (y₁ ⃗) | [ eq₁ ] = lem
-    where
-    rs' : ［ c₁ ⊕ c₂ ∣ inj₂ y ∣ ☐ ］◁ ↦* ［ c₁ ⊕ c₂ ∣ inj₂ y₁ ∣ ☐ ］▷
-    rs' = ↦⃖₁₂ ∷ appendκ↦* (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (y ⃖)) eq₁)) (λ ()) (λ ()) refl (c₁ ⊕☐• ☐) ++↦ ↦⃗₁₂ ∷ ◾
-
-    lem : eval (c₁ ⊕ c₂) (inj₂ y ⃖) ≡ just (inj₂ y₁ ⃗)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | refl = subst (λ x → [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x ≡ just (inj₂ y₁ ⃗)) eq refl
-  eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃖) | inj₂ (inj₁ ((x' , rs) , eq)) | just (y₁ ⃖) | [ eq₁ ] = lem
-    where
-    rs' : ［ c₁ ⊕ c₂ ∣ inj₂ y ∣ ☐ ］◁ ↦* ⟨ c₁ ⊕ c₂ ∣ inj₂ y₁ ∣ ☐ ⟩◁
-    rs' = ↦⃖₁₂ ∷ appendκ↦* (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (y ⃖)) eq₁)) (λ ()) (λ ()) refl (c₁ ⊕☐• ☐) ++↦ ↦⃖₅ ∷ ◾
-
-    lem : eval (c₁ ⊕ c₂) (inj₂ y ⃖) ≡ just (inj₂ y₁ ⃖)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃖) | inj₂ (inj₁ ((x' , rs) , eq)) | nothing     | [ eq₁ ] = lem
-    where
-    rs' : ［ c₁ ⊕ c₂ ∣ inj₂ y ∣ ☐ ］◁ ↦* ⊠
-    rs' = ↦⃖₁₂ ∷ appendκ↦*⊠ (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (y ⃖)) eq₁)) (λ ()) (c₁ ⊕☐• ☐)
-    
-    lem : eval (c₁ ⊕ c₂) (inj₂ y ⃖) ≡ nothing
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃖) | inj₂ (inj₂ (rs , eq)) | just (y₁ ⃗) | [ eq₁ ] = lem
-    where
-    rs' : ［ c₁ ⊕ c₂ ∣ inj₂ y ∣ ☐ ］◁ ↦* ［ c₁ ⊕ c₂ ∣ inj₂ y₁ ∣ ☐ ］▷
-    rs' = ↦⃖₁₂ ∷ appendκ↦* (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (y ⃖)) eq₁)) (λ ()) (λ ()) refl (c₁ ⊕☐• ☐) ++↦ ↦⃗₁₂ ∷ ◾
-
-    lem : eval (c₁ ⊕ c₂) (inj₂ y ⃖) ≡ just (inj₂ y₁ ⃗)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃖) | inj₂ (inj₂ (rs , eq)) | just (y₁ ⃖) | [ eq₁ ] = lem
-    where
-    rs' : ［ c₁ ⊕ c₂ ∣ inj₂ y ∣ ☐ ］◁ ↦* ⟨ c₁ ⊕ c₂ ∣ inj₂ y₁ ∣ ☐ ⟩◁
-    rs' = ↦⃖₁₂ ∷ appendκ↦* (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (y ⃖)) eq₁)) (λ ()) (λ ()) refl (c₁ ⊕☐• ☐) ++↦ ↦⃖₅ ∷ ◾
-
-    lem : eval (c₁ ⊕ c₂) (inj₂ y ⃖) ≡ just (inj₂ y₁ ⃖)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃖) | inj₂ (inj₂ (rs , eq)) | nothing     | [ eq₁ ] = lem
-    where
-    rs' : ［ c₁ ⊕ c₂ ∣ inj₂ y ∣ ☐ ］◁ ↦* ⊠
-    rs' = ↦⃖₁₂ ∷ appendκ↦*⊠ (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (y ⃖)) eq₁)) (λ ()) (c₁ ⊕☐• ☐)
-    
-    lem : eval (c₁ ⊕ c₂) (inj₂ y ⃖) ≡ nothing
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | refl = subst (λ x → [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x ≡ nothing) eq refl
-  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃗) with inspect⊎ (run ⟨ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ⟩▷) (λ ()) | interp c₁ (x ⃗) | inspect (interp c₁) (x ⃗)
-  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃗) | inj₁ (((x' , y') , rs) , eq) | just (x₁ ⃗) | [ eq₁ ] with interp c₂ (y ⃗) | inspect (interp c₂) (y ⃗)
-  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃗) | inj₁ (((x' , y') , rs) , eq) | just (x₁ ⃗) | [ eq₁ ] | just (y₁ ⃗) | [ eq₂ ] = lem
+  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃗) with interp c₁ (x ⃗) | inspect (interp c₁) (x ⃗)
+  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃗) | just (x₁ ⃗) | [ eq₁ ] with interp c₂ (y ⃗) | inspect (interp c₂) (y ⃗)
+  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃗) | just (x₁ ⃗) | [ eq₁ ] | just (y₁ ⃗) | [ eq₂ ] = eval-toState₁ rs'
     where
     rs' : ⟨ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ⟩▷ ↦* ［ c₁ ⊗ c₂ ∣ (x₁ , y₁) ∣ ☐ ］▷
     rs' = ↦⃗₆ ∷ appendκ↦* (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (x ⃗)) eq₁)) (λ ()) (λ ()) refl (☐⊗[ c₂ , y ]• ☐) ++↦
           ↦⃗₈ ∷ appendκ↦* (getₜᵣ⃗ c₂ (trans (eval≡interp c₂ (y ⃗)) eq₂)) (λ ()) (λ ()) refl ([ c₁ , x₁ ]⊗☐• ☐) ++↦ ↦⃗₉ ∷ ◾
-    
-    lem : eval (c₁ ⊗ c₂) ((x , y) ⃗) ≡ just ((x₁ , y₁) ⃗)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃗) | inj₁ (((x' , y') , rs) , eq) | just (x₁ ⃗) | [ eq₁ ] | just (y₁ ⃖) | [ eq₂ ] = lem
+  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃗) | just (x₁ ⃗) | [ eq₁ ] | just (y₁ ⃖) | [ eq₂ ] = eval-toState₁ rs'
     where
     rs' : ⟨ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ⟩▷ ↦* ⟨ c₁ ⊗ c₂ ∣ (x , y₁) ∣ ☐ ⟩◁
     rs' = ↦⃗₆ ∷ appendκ↦* (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (x ⃗)) eq₁)) (λ ()) (λ ()) refl (☐⊗[ c₂ , y ]• ☐) ++↦
           ↦⃗₈ ∷ appendκ↦* (getₜᵣ⃗ c₂ (trans (eval≡interp c₂ (y ⃗)) eq₂)) (λ ()) (λ ()) refl ([ c₁ , x₁ ]⊗☐• ☐) ++↦
           ↦⃖₈ ∷ Rev* (appendκ↦* (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (x ⃗)) eq₁)) (λ ()) (λ ()) refl (☐⊗[ c₂ , y₁ ]• ☐)) (λ ()) (λ ()) ++↦ ↦⃖₆ ∷ ◾
-    
-    lem : eval (c₁ ⊗ c₂) ((x , y) ⃗) ≡ just ((x , y₁) ⃖)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | refl = subst (λ z → [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ z ≡ just ((x , y₁) ⃖)) eq refl
-  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃗) | inj₁ (((x' , y') , rs) , eq) | just (x₁ ⃗) | [ eq₁ ] | nothing     | [ eq₂ ] = lem
+  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃗) | just (x₁ ⃗) | [ eq₁ ] | nothing     | [ eq₂ ] = eval-toState₁ rs'
     where
     rs' : ⟨ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ⟩▷ ↦* ⊠
     rs' = ↦⃗₆ ∷ appendκ↦* (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (x ⃗)) eq₁)) (λ ()) (λ ()) refl (☐⊗[ c₂ , y ]• ☐) ++↦
           ↦⃗₈ ∷ appendκ↦*⊠ (getₜᵣ⃗ c₂ (trans (eval≡interp c₂ (y ⃗)) eq₂)) (λ ()) ([ c₁ , x₁ ]⊗☐• ☐)
-    
-    lem : eval (c₁ ⊗ c₂) ((x , y) ⃗) ≡ nothing
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃗) | inj₁ (((x' , y') , rs) , eq) | just (x₁ ⃖) | [ eq₁ ] = lem
+  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃗) | just (x₁ ⃖) | [ eq₁ ] = eval-toState₁ rs'
     where
     rs' : ⟨ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ⟩▷ ↦* ⟨ c₁ ⊗ c₂ ∣ (x₁ , y) ∣ ☐ ⟩◁
     rs' = ↦⃗₆ ∷ appendκ↦* (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (x ⃗)) eq₁)) (λ ()) (λ ()) refl (☐⊗[ c₂ , y ]• ☐) ++↦ ↦⃖₆ ∷ ◾
-
-    lem : eval (c₁ ⊗ c₂) ((x , y) ⃗) ≡ just ((x₁ , y) ⃖)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | refl = subst (λ x → [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ x ≡ just ((x₁ , y) ⃖)) eq refl
-  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃗) | inj₁ (((x' , y') , rs) , eq) | nothing     | [ eq₁ ] = lem
+  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃗) | nothing     | [ eq₁ ] = eval-toState₁ rs'
     where
     rs' : ⟨ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ⟩▷ ↦* ⊠
     rs' = ↦⃗₆ ∷ appendκ↦*⊠ (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (x ⃗)) eq₁)) (λ ()) (☐⊗[ c₂ , y ]• ☐)
-    
-    lem : eval (c₁ ⊗ c₂) ((x , y) ⃗) ≡ nothing
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃗) | inj₂ (inj₁ (((x' , y') , rs) , eq)) | just (x₁ ⃗) | [ eq₁ ] with interp c₂ (y ⃗) | inspect (interp c₂) (y ⃗)
-  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃗) | inj₂ (inj₁ (((x' , y') , rs) , eq)) | just (x₁ ⃗) | [ eq₁ ] | just (y₁ ⃗) | [ eq₂ ] = lem
-    where
-    rs' : ⟨ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ⟩▷ ↦* ［ c₁ ⊗ c₂ ∣ (x₁ , y₁) ∣ ☐ ］▷
-    rs' = ↦⃗₆ ∷ appendκ↦* (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (x ⃗)) eq₁)) (λ ()) (λ ()) refl (☐⊗[ c₂ , y ]• ☐) ++↦
-          ↦⃗₈ ∷ appendκ↦* (getₜᵣ⃗ c₂ (trans (eval≡interp c₂ (y ⃗)) eq₂)) (λ ()) (λ ()) refl ([ c₁ , x₁ ]⊗☐• ☐) ++↦ ↦⃗₉ ∷ ◾
-    
-    lem : eval (c₁ ⊗ c₂) ((x , y) ⃗) ≡ just ((x₁ , y₁) ⃗)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | refl = subst (λ z → [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ z ≡ just ((x₁ , y₁) ⃗)) eq refl
-  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃗) | inj₂ (inj₁ (((x' , y') , rs) , eq)) | just (x₁ ⃗) | [ eq₁ ] | just (y₁ ⃖) | [ eq₂ ] = lem
-    where
-    rs' : ⟨ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ⟩▷ ↦* ⟨ c₁ ⊗ c₂ ∣ (x , y₁) ∣ ☐ ⟩◁
-    rs' = ↦⃗₆ ∷ appendκ↦* (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (x ⃗)) eq₁)) (λ ()) (λ ()) refl (☐⊗[ c₂ , y ]• ☐) ++↦
-          ↦⃗₈ ∷ appendκ↦* (getₜᵣ⃗ c₂ (trans (eval≡interp c₂ (y ⃗)) eq₂)) (λ ()) (λ ()) refl ([ c₁ , x₁ ]⊗☐• ☐) ++↦
-          ↦⃖₈ ∷ Rev* (appendκ↦* (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (x ⃗)) eq₁)) (λ ()) (λ ()) refl (☐⊗[ c₂ , y₁ ]• ☐)) (λ ()) (λ ()) ++↦ ↦⃖₆ ∷ ◾
-    
-    lem : eval (c₁ ⊗ c₂) ((x , y) ⃗) ≡ just ((x , y₁) ⃖)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃗) | inj₂ (inj₁ (((x' , y') , rs) , eq)) | just (x₁ ⃗) | [ eq₁ ] | nothing     | [ eq₂ ] = lem
-    where
-    rs' : ⟨ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ⟩▷ ↦* ⊠
-    rs' = ↦⃗₆ ∷ appendκ↦* (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (x ⃗)) eq₁)) (λ ()) (λ ()) refl (☐⊗[ c₂ , y ]• ☐) ++↦
-          ↦⃗₈ ∷ appendκ↦*⊠ (getₜᵣ⃗ c₂ (trans (eval≡interp c₂ (y ⃗)) eq₂)) (λ ()) ([ c₁ , x₁ ]⊗☐• ☐)
-    
-    lem : eval (c₁ ⊗ c₂) ((x , y) ⃗) ≡ nothing
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃗) | inj₂ (inj₁ (((x' , y') , rs) , eq)) | just (x₁ ⃖) | [ eq₁ ] = lem
-    where
-    rs' : ⟨ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ⟩▷ ↦* ⟨ c₁ ⊗ c₂ ∣ (x₁ , y) ∣ ☐ ⟩◁
-    rs' = ↦⃗₆ ∷ appendκ↦* (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (x ⃗)) eq₁)) (λ ()) (λ ()) refl (☐⊗[ c₂ , y ]• ☐) ++↦ ↦⃖₆ ∷ ◾
-
-    lem : eval (c₁ ⊗ c₂) ((x , y) ⃗) ≡ just ((x₁ , y) ⃖)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃗) | inj₂ (inj₁ (((x' , y') , rs) , eq)) | nothing     | [ eq₁ ] = lem
-    where
-    rs' : ⟨ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ⟩▷ ↦* ⊠
-    rs' = ↦⃗₆ ∷ appendκ↦*⊠ (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (x ⃗)) eq₁)) (λ ()) (☐⊗[ c₂ , y ]• ☐)
-    
-    lem : eval (c₁ ⊗ c₂) ((x , y) ⃗) ≡ nothing
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃗) | inj₂ (inj₂ (rs , eq)) | just (x₁ ⃗) | [ eq₁ ] with interp c₂ (y ⃗) | inspect (interp c₂) (y ⃗)
-  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃗) | inj₂ (inj₂ (rs , eq)) | just (x₁ ⃗) | [ eq₁ ] | just (y₁ ⃗) | [ eq₂ ] = lem
-    where
-    rs' : ⟨ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ⟩▷ ↦* ［ c₁ ⊗ c₂ ∣ (x₁ , y₁) ∣ ☐ ］▷
-    rs' = ↦⃗₆ ∷ appendκ↦* (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (x ⃗)) eq₁)) (λ ()) (λ ()) refl (☐⊗[ c₂ , y ]• ☐) ++↦
-          ↦⃗₈ ∷ appendκ↦* (getₜᵣ⃗ c₂ (trans (eval≡interp c₂ (y ⃗)) eq₂)) (λ ()) (λ ()) refl ([ c₁ , x₁ ]⊗☐• ☐) ++↦ ↦⃗₉ ∷ ◾
-    
-    lem : eval (c₁ ⊗ c₂) ((x , y) ⃗) ≡ just ((x₁ , y₁) ⃗)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃗) | inj₂ (inj₂ (rs , eq)) | just (x₁ ⃗) | [ eq₁ ] | just (y₁ ⃖) | [ eq₂ ] = lem
-    where
-    rs' : ⟨ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ⟩▷ ↦* ⟨ c₁ ⊗ c₂ ∣ (x , y₁) ∣ ☐ ⟩◁
-    rs' = ↦⃗₆ ∷ appendκ↦* (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (x ⃗)) eq₁)) (λ ()) (λ ()) refl (☐⊗[ c₂ , y ]• ☐) ++↦
-          ↦⃗₈ ∷ appendκ↦* (getₜᵣ⃗ c₂ (trans (eval≡interp c₂ (y ⃗)) eq₂)) (λ ()) (λ ()) refl ([ c₁ , x₁ ]⊗☐• ☐) ++↦
-          ↦⃖₈ ∷ Rev* (appendκ↦* (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (x ⃗)) eq₁)) (λ ()) (λ ()) refl (☐⊗[ c₂ , y₁ ]• ☐)) (λ ()) (λ ()) ++↦ ↦⃖₆ ∷ ◾
-    
-    lem : eval (c₁ ⊗ c₂) ((x , y) ⃗) ≡ just ((x , y₁) ⃖)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃗) | inj₂ (inj₂ (rs , eq)) | just (x₁ ⃗) | [ eq₁ ] | nothing     | [ eq₂ ] = lem
-    where
-    rs' : ⟨ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ⟩▷ ↦* ⊠
-    rs' = ↦⃗₆ ∷ appendκ↦* (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (x ⃗)) eq₁)) (λ ()) (λ ()) refl (☐⊗[ c₂ , y ]• ☐) ++↦
-          ↦⃗₈ ∷ appendκ↦*⊠ (getₜᵣ⃗ c₂ (trans (eval≡interp c₂ (y ⃗)) eq₂)) (λ ()) ([ c₁ , x₁ ]⊗☐• ☐)
-    
-    lem : eval (c₁ ⊗ c₂) ((x , y) ⃗) ≡ nothing
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | refl = subst (λ z → [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ z ≡ nothing) eq refl
-  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃗) | inj₂ (inj₂ (rs , eq)) | just (x₁ ⃖) | [ eq₁ ] = lem
-    where
-    rs' : ⟨ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ⟩▷ ↦* ⟨ c₁ ⊗ c₂ ∣ (x₁ , y) ∣ ☐ ⟩◁
-    rs' = ↦⃗₆ ∷ appendκ↦* (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (x ⃗)) eq₁)) (λ ()) (λ ()) refl (☐⊗[ c₂ , y ]• ☐) ++↦ ↦⃖₆ ∷ ◾
-
-    lem : eval (c₁ ⊗ c₂) ((x , y) ⃗) ≡ just ((x₁ , y) ⃖)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃗) | inj₂ (inj₂ (rs , eq)) | nothing     | [ eq₁ ] = lem
-    where
-    rs' : ⟨ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ⟩▷ ↦* ⊠
-    rs' = ↦⃗₆ ∷ appendκ↦*⊠ (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (x ⃗)) eq₁)) (λ ()) (☐⊗[ c₂ , y ]• ☐)
-    
-    lem : eval (c₁ ⊗ c₂) ((x , y) ⃗) ≡ nothing
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | refl = subst (λ z → [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ z ≡ nothing) eq refl
-  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃖) with inspect⊎ (run ［ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ］◁) (λ ()) | interp c₂ (y ⃖) | inspect (interp c₂) (y ⃖)
-  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃖) | inj₁ (((x' , y') , rs) , eq) | just (y₁ ⃗) | [ eq₂ ] = lem
+  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃖) with interp c₂ (y ⃖) | inspect (interp c₂) (y ⃖)
+  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃖) | just (y₁ ⃗) | [ eq₂ ] = eval-toState₂ rs'
     where
     rs' : ［ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ］◁ ↦* ［ c₁ ⊗ c₂ ∣ (x , y₁) ∣ ☐ ］▷
     rs' = ↦⃖₉ ∷ appendκ↦* (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (y ⃖)) eq₂)) (λ ()) (λ ()) refl ([ c₁ , x ]⊗☐• ☐) ++↦ ↦⃗₉ ∷ ◾
-    
-    lem : eval (c₁ ⊗ c₂) ((x , y) ⃖) ≡ just ((x , y₁) ⃗)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃖) | inj₁ (((x' , y') , rs) , eq) | just (y₁ ⃖) | [ eq₂ ] with interp c₁ (x ⃖) | inspect (interp c₁) (x ⃖)
-  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃖) | inj₁ (((x' , y') , rs) , eq) | just (y₁ ⃖) | [ eq₂ ] | just (x₁ ⃗) | [ eq₁ ] = lem
+  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃖) | just (y₁ ⃖) | [ eq₂ ] with interp c₁ (x ⃖) | inspect (interp c₁) (x ⃖)
+  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃖) | just (y₁ ⃖) | [ eq₂ ] | just (x₁ ⃗) | [ eq₁ ] = eval-toState₂ rs'
     where
     rs' : ［ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ］◁ ↦* ［ c₁ ⊗ c₂ ∣ (x₁ , y) ∣ ☐ ］▷
     rs' = ↦⃖₉ ∷ appendκ↦* (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (y ⃖)) eq₂)) (λ ()) (λ ()) refl ([ c₁ , x ]⊗☐• ☐) ++↦
           ↦⃖₈ ∷ appendκ↦* (getₜᵣ⃖ c₁ (trans (eval≡interp c₁ (x ⃖)) eq₁)) (λ ()) (λ ()) refl (☐⊗[ c₂ , y₁ ]• ☐) ++↦
           ↦⃗₈ ∷ Rev* (appendκ↦* (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (y ⃖)) eq₂)) (λ ()) (λ ()) refl ([ c₁ , x₁ ]⊗☐• ☐)) (λ ()) (λ ()) ++↦ ↦⃗₉ ∷ ◾
-    
-    lem : eval (c₁ ⊗ c₂) ((x , y) ⃖) ≡ just ((x₁ , y) ⃗)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃖) | inj₁ (((x' , y') , rs) , eq) | just (y₁ ⃖) | [ eq₂ ] | just (x₁ ⃖) | [ eq₁ ] = lem
+  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃖) | just (y₁ ⃖) | [ eq₂ ] | just (x₁ ⃖) | [ eq₁ ] = eval-toState₂ rs'
     where
     rs' : ［ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ］◁ ↦* ⟨ c₁ ⊗ c₂ ∣ (x₁ , y₁) ∣ ☐ ⟩◁
     rs' = ↦⃖₉ ∷ appendκ↦* (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (y ⃖)) eq₂)) (λ ()) (λ ()) refl ([ c₁ , x ]⊗☐• ☐) ++↦
           ↦⃖₈ ∷ appendκ↦* (getₜᵣ⃖ c₁ (trans (eval≡interp c₁ (x ⃖)) eq₁)) (λ ()) (λ ()) refl (☐⊗[ c₂ , y₁ ]• ☐) ++↦ ↦⃖₆ ∷ ◾
-    
-    lem : eval (c₁ ⊗ c₂) ((x , y) ⃖) ≡ just ((x₁ , y₁) ⃖)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | refl = subst (λ z → [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ z ≡ just ((x₁ , y₁) ⃖)) eq refl
-  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃖) | inj₁ (((x' , y') , rs) , eq) | just (y₁ ⃖) | [ eq₂ ] | nothing     | [ eq₁ ] = lem
+  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃖) | just (y₁ ⃖) | [ eq₂ ] | nothing     | [ eq₁ ] = eval-toState₂ rs'
     where
     rs' : ［ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ］◁ ↦* ⊠
     rs' = ↦⃖₉ ∷ appendκ↦* (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (y ⃖)) eq₂)) (λ ()) (λ ()) refl ([ c₁ , x ]⊗☐• ☐) ++↦
           ↦⃖₈ ∷ appendκ↦*⊠ (getₜᵣ⃖ c₁ (trans (eval≡interp c₁ (x ⃖)) eq₁)) (λ ()) (☐⊗[ c₂ , y₁ ]• ☐)
-    
-    lem : eval (c₁ ⊗ c₂) ((x , y) ⃖) ≡ nothing
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃖) | inj₁ (((x' , y') , rs) , eq) | nothing     | [ eq₂ ] = lem
+  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃖) | nothing     | [ eq₂ ] = eval-toState₂ rs'
     where
     rs' : ［ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ］◁ ↦* ⊠
     rs' = ↦⃖₉ ∷ appendκ↦*⊠ (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (y ⃖)) eq₂)) (λ ()) ([ c₁ , x ]⊗☐• ☐)
-    
-    lem : eval (c₁ ⊗ c₂) ((x , y) ⃖) ≡ nothing
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃖) | inj₂ (inj₁ (((x' , y') , rs) , eq)) | just (y₁ ⃗) | [ eq₂ ] = lem
-    where
-    rs' : ［ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ］◁ ↦* ［ c₁ ⊗ c₂ ∣ (x , y₁) ∣ ☐ ］▷
-    rs' = ↦⃖₉ ∷ appendκ↦* (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (y ⃖)) eq₂)) (λ ()) (λ ()) refl ([ c₁ , x ]⊗☐• ☐) ++↦ ↦⃗₉ ∷ ◾
-    
-    lem : eval (c₁ ⊗ c₂) ((x , y) ⃖) ≡ just ((x , y₁) ⃗)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | refl = subst (λ z → [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ z ≡ just ((x , y₁) ⃗)) eq refl
-  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃖) | inj₂ (inj₁ (((x' , y') , rs) , eq)) | just (y₁ ⃖) | [ eq₂ ] with interp c₁ (x ⃖) | inspect (interp c₁) (x ⃖)
-  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃖) | inj₂ (inj₁ (((x' , y') , rs) , eq)) | just (y₁ ⃖) | [ eq₂ ] | just (x₁ ⃗) | [ eq₁ ] = lem
-    where
-    rs' : ［ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ］◁ ↦* ［ c₁ ⊗ c₂ ∣ (x₁ , y) ∣ ☐ ］▷
-    rs' = ↦⃖₉ ∷ appendκ↦* (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (y ⃖)) eq₂)) (λ ()) (λ ()) refl ([ c₁ , x ]⊗☐• ☐) ++↦
-          ↦⃖₈ ∷ appendκ↦* (getₜᵣ⃖ c₁ (trans (eval≡interp c₁ (x ⃖)) eq₁)) (λ ()) (λ ()) refl (☐⊗[ c₂ , y₁ ]• ☐) ++↦
-          ↦⃗₈ ∷ Rev* (appendκ↦* (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (y ⃖)) eq₂)) (λ ()) (λ ()) refl ([ c₁ , x₁ ]⊗☐• ☐)) (λ ()) (λ ()) ++↦ ↦⃗₉ ∷ ◾
-    
-    lem : eval (c₁ ⊗ c₂) ((x , y) ⃖) ≡ just ((x₁ , y) ⃗)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | refl = subst (λ z → [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ z ≡ just ((x₁ , y) ⃗)) eq refl
-  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃖) | inj₂ (inj₁ (((x' , y') , rs) , eq)) | just (y₁ ⃖) | [ eq₂ ] | just (x₁ ⃖) | [ eq₁ ] = lem
-    where
-    rs' : ［ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ］◁ ↦* ⟨ c₁ ⊗ c₂ ∣ (x₁ , y₁) ∣ ☐ ⟩◁
-    rs' = ↦⃖₉ ∷ appendκ↦* (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (y ⃖)) eq₂)) (λ ()) (λ ()) refl ([ c₁ , x ]⊗☐• ☐) ++↦
-          ↦⃖₈ ∷ appendκ↦* (getₜᵣ⃖ c₁ (trans (eval≡interp c₁ (x ⃖)) eq₁)) (λ ()) (λ ()) refl (☐⊗[ c₂ , y₁ ]• ☐) ++↦ ↦⃖₆ ∷ ◾
-    
-    lem : eval (c₁ ⊗ c₂) ((x , y) ⃖) ≡ just ((x₁ , y₁) ⃖)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃖) | inj₂ (inj₁ (((x' , y') , rs) , eq)) | just (y₁ ⃖) | [ eq₂ ] | nothing     | [ eq₁ ] = lem
-    where
-    rs' : ［ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ］◁ ↦* ⊠
-    rs' = ↦⃖₉ ∷ appendκ↦* (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (y ⃖)) eq₂)) (λ ()) (λ ()) refl ([ c₁ , x ]⊗☐• ☐) ++↦
-          ↦⃖₈ ∷ appendκ↦*⊠ (getₜᵣ⃖ c₁ (trans (eval≡interp c₁ (x ⃖)) eq₁)) (λ ()) (☐⊗[ c₂ , y₁ ]• ☐)
-    
-    lem : eval (c₁ ⊗ c₂) ((x , y) ⃖) ≡ nothing
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃖) | inj₂ (inj₁ (((x' , y') , rs) , eq)) | nothing     | [ eq₂ ] = lem
-    where
-    rs' : ［ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ］◁ ↦* ⊠
-    rs' = ↦⃖₉ ∷ appendκ↦*⊠ (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (y ⃖)) eq₂)) (λ ()) ([ c₁ , x ]⊗☐• ☐)
-    
-    lem : eval (c₁ ⊗ c₂) ((x , y) ⃖) ≡ nothing
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃖) | inj₂ (inj₂ (rs , eq)) | just (y₁ ⃗) | [ eq₂ ] = lem
-    where
-    rs' : ［ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ］◁ ↦* ［ c₁ ⊗ c₂ ∣ (x , y₁) ∣ ☐ ］▷
-    rs' = ↦⃖₉ ∷ appendκ↦* (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (y ⃖)) eq₂)) (λ ()) (λ ()) refl ([ c₁ , x ]⊗☐• ☐) ++↦ ↦⃗₉ ∷ ◾
-    
-    lem : eval (c₁ ⊗ c₂) ((x , y) ⃖) ≡ just ((x , y₁) ⃗)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃖) | inj₂ (inj₂ (rs , eq)) | just (y₁ ⃖) | [ eq₂ ] with interp c₁ (x ⃖) | inspect (interp c₁) (x ⃖)
-  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃖) | inj₂ (inj₂ (rs , eq)) | just (y₁ ⃖) | [ eq₂ ] | just (x₁ ⃗) | [ eq₁ ] = lem
-    where
-    rs' : ［ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ］◁ ↦* ［ c₁ ⊗ c₂ ∣ (x₁ , y) ∣ ☐ ］▷
-    rs' = ↦⃖₉ ∷ appendκ↦* (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (y ⃖)) eq₂)) (λ ()) (λ ()) refl ([ c₁ , x ]⊗☐• ☐) ++↦
-          ↦⃖₈ ∷ appendκ↦* (getₜᵣ⃖ c₁ (trans (eval≡interp c₁ (x ⃖)) eq₁)) (λ ()) (λ ()) refl (☐⊗[ c₂ , y₁ ]• ☐) ++↦
-          ↦⃗₈ ∷ Rev* (appendκ↦* (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (y ⃖)) eq₂)) (λ ()) (λ ()) refl ([ c₁ , x₁ ]⊗☐• ☐)) (λ ()) (λ ()) ++↦ ↦⃗₉ ∷ ◾
-    
-    lem : eval (c₁ ⊗ c₂) ((x , y) ⃖) ≡ just ((x₁ , y) ⃗)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃖) | inj₂ (inj₂ (rs , eq)) | just (y₁ ⃖) | [ eq₂ ] | just (x₁ ⃖) | [ eq₁ ] = lem
-    where
-    rs' : ［ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ］◁ ↦* ⟨ c₁ ⊗ c₂ ∣ (x₁ , y₁) ∣ ☐ ⟩◁
-    rs' = ↦⃖₉ ∷ appendκ↦* (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (y ⃖)) eq₂)) (λ ()) (λ ()) refl ([ c₁ , x ]⊗☐• ☐) ++↦
-          ↦⃖₈ ∷ appendκ↦* (getₜᵣ⃖ c₁ (trans (eval≡interp c₁ (x ⃖)) eq₁)) (λ ()) (λ ()) refl (☐⊗[ c₂ , y₁ ]• ☐) ++↦ ↦⃖₆ ∷ ◾
-    
-    lem : eval (c₁ ⊗ c₂) ((x , y) ⃖) ≡ just ((x₁ , y₁) ⃖)
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | ()
-  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃖) | inj₂ (inj₂ (rs , eq)) | just (y₁ ⃖) | [ eq₂ ] | nothing     | [ eq₁ ] = lem
-    where
-    rs' : ［ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ］◁ ↦* ⊠
-    rs' = ↦⃖₉ ∷ appendκ↦* (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (y ⃖)) eq₂)) (λ ()) (λ ()) refl ([ c₁ , x ]⊗☐• ☐) ++↦
-          ↦⃖₈ ∷ appendκ↦*⊠ (getₜᵣ⃖ c₁ (trans (eval≡interp c₁ (x ⃖)) eq₁)) (λ ()) (☐⊗[ c₂ , y₁ ]• ☐)
-    
-    lem : eval (c₁ ⊗ c₂) ((x , y) ⃖) ≡ nothing
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | refl = subst (λ z → [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ z ≡ nothing) eq refl
-  eval≡interp (c₁ ⊗ c₂) ((x , y) ⃖) | inj₂ (inj₂ (rs , eq)) | nothing     | [ eq₂ ] = lem
-    where
-    rs' : ［ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ］◁ ↦* ⊠
-    rs' = ↦⃖₉ ∷ appendκ↦*⊠ (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (y ⃖)) eq₂)) (λ ()) ([ c₁ , x ]⊗☐• ☐)
-    
-    lem : eval (c₁ ⊗ c₂) ((x , y) ⃖) ≡ nothing
-    lem with deterministic* rs rs' (λ ()) (λ ())
-    ... | refl = subst (λ z → [ just ∘ _⃖ ∘ proj₁ , [ just ∘ _⃗ ∘ proj₁ , (λ _ → nothing) ]′ ]′ z ≡ nothing) eq refl
 
-  -- Termination is guarantee by PiQ.NoRepeat:
-  -- The execution trace in the argument will grow in every mutual recursive call, but it can only has finite length.
-  {-# TERMINATING #-}
-  loop₁⃗ : ∀ {A B C a₀} → (c₁ : A ↔ B) → (b : ⟦ B ⟧) → (c₂ : B ↔ C)
-         → ⟨ c₁ ⨾ c₂ ∣ a₀ ∣ ☐ ⟩▷ ↦* ［ c₁ ∣ b ∣ ☐⨾ c₂ • ☐ ］▷
-         → ⟨ c₁ ⨾ c₂ ∣ a₀ ∣ ☐ ⟩▷ ↦* (toState c₁ c₂ (c₁ ⨾[ b ⃗]⨾ c₂))
-  loop₁⃗ c₁ b c₂ rsₐ with interp c₂ (b ⃗) | inspect (interp c₂) (b ⃗)
-  loop₁⃗ c₁ b c₂ rsₐ | just (c ⃗)  | [ eq ] = rsₐ ++↦ ↦⃗₇ ∷ appendκ↦* (getₜᵣ⃗ c₂ (trans (eval≡interp c₂ (b ⃗)) eq)) (λ ()) (λ ()) refl (c₁ ⨾☐• ☐) ++↦ ↦⃗₁₀ ∷ ◾
-  loop₁⃗ c₁ b c₂ rsₐ | just (b' ⃖) | [ eq ] = loop₂⃗ c₁ b' c₂ (rsₐ ++↦ ↦⃗₇ ∷ appendκ↦* (getₜᵣ⃗ c₂ (trans (eval≡interp c₂ (b ⃗)) eq)) (λ ()) (λ ()) refl (c₁ ⨾☐• ☐) ++↦ ↦⃖₇ ∷ ◾)
-  loop₁⃗ c₁ b c₂ rsₐ | nothing     | [ eq ] = rsₐ ++↦ ↦⃗₇ ∷ appendκ↦*⊠ (getₜᵣ⃗ c₂ (trans (eval≡interp c₂ (b ⃗)) eq)) (λ ()) (c₁ ⨾☐• ☐)  
-  
-  loop₂⃗ : ∀ {A B C a₀} → (c₁ : A ↔ B) → (b : ⟦ B ⟧) → (c₂ : B ↔ C)
-        → ⟨ c₁ ⨾ c₂ ∣ a₀ ∣ ☐ ⟩▷ ↦* ［ c₁ ∣ b ∣ ☐⨾ c₂ • ☐ ］◁
-        → ⟨ c₁ ⨾ c₂ ∣ a₀ ∣ ☐ ⟩▷ ↦* (toState c₁ c₂ (c₁ ⨾[ b ⃖]⨾ c₂))
-  loop₂⃗ c₁ b c₂ rsₐ with interp c₁ (b ⃖) | inspect (interp c₁) (b ⃖)
-  loop₂⃗ c₁ b c₂ rsₐ | just (b' ⃗) | [ eq ] = loop₁⃗ c₁ b' c₂ (rsₐ ++↦ appendκ↦* (getₜᵣ⃖ c₁ (trans (eval≡interp c₁ (b ⃖)) eq)) (λ ()) (λ ()) refl (☐⨾ c₂ • ☐))
-  loop₂⃗ c₁ b c₂ rsₐ | just (a ⃖)  | [ eq ] = rsₐ ++↦ appendκ↦* (getₜᵣ⃖ c₁ (trans (eval≡interp c₁ (b ⃖)) eq)) (λ ()) (λ ()) refl (☐⨾ c₂ • ☐) ++↦ ↦⃖₃ ∷ ◾
-  loop₂⃗ c₁ b c₂ rsₐ | nothing     | [ eq ] = rsₐ ++↦ appendκ↦*⊠ (getₜᵣ⃖ c₁ (trans (eval≡interp c₁ (b ⃖)) eq)) (λ ()) (☐⨾ c₂ • ☐)
+  private
+    loop : ∀ {A B C x} {c₁ : A ↔ B} {c₂ : B ↔ C} (n : ℕ)
+         → ∀ b → ((rs : ［ c₁ ∣ b ∣ ☐⨾ c₂ • ☐ ］▷ ↦* toState (c₁ ⨾ c₂) x) → len↦ rs ≡ n → x ≡ c₁ ⨾[ b ⃗]⨾ c₂)
+               × ((rs : ⟨ c₂ ∣ b ∣ c₁ ⨾☐• ☐ ⟩◁ ↦* toState (c₁ ⨾ c₂) x) → len↦ rs ≡ n → x ≡ c₁ ⨾[ b ⃖]⨾ c₂)
+    loop {A} {B} {C} {x} {c₁} {c₂} = <′-rec (λ n → _) loop-rec
+      where
+      loop-rec : (n : ℕ) → (∀ m → m <′ n → _) → _
+      loop-rec n R b = loop₁ , loop₂
+        where
+        loop₁ : (rs : ［ c₁ ∣ b ∣ ☐⨾ c₂ • ☐ ］▷ ↦* toState (c₁ ⨾ c₂) x) → len↦ rs ≡ n → x ≡ c₁ ⨾[ b ⃗]⨾ c₂
+        loop₁ rs refl with interp c₂ (b ⃗) | inspect (interp c₂) (b ⃗)
+        loop₁ rs refl | just (c ⃗)  | [ eq ] = toState≡₁ (deterministic* rs rs' (is-stuck-toState _ _) (λ ()))
+          where
+          rs' : ［ c₁ ∣ b ∣ ☐⨾ c₂ • ☐ ］▷ ↦* ［ c₁ ⨾ c₂ ∣ c ∣ ☐ ］▷
+          rs' = ↦⃗₇ ∷ appendκ↦* (getₜᵣ⃗ c₂ (trans (eval≡interp c₂ (b ⃗)) eq)) (λ ()) (λ ()) refl (c₁ ⨾☐• ☐) ++↦ ↦⃗₁₀ ∷ ◾
+        loop₁ rs refl | just (b' ⃖) | [ eq ] = proj₂ (R (len↦ rs'') le b') rs'' refl
+          where
+          rs' : ［ c₁ ∣ b ∣ ☐⨾ c₂ • ☐ ］▷ ↦* ⟨ c₂ ∣ b' ∣ c₁ ⨾☐• ☐ ⟩◁
+          rs' = ↦⃗₇ ∷ appendκ↦* (getₜᵣ⃗ c₂ (trans (eval≡interp c₂ (b ⃗)) eq)) (λ ()) (λ ()) refl (c₁ ⨾☐• ☐)
 
-  loop₁⃖ : ∀ {A B C c₀} → (c₁ : A ↔ B) → (b : ⟦ B ⟧) → (c₂ : B ↔ C)
-         → ［ c₁ ⨾ c₂ ∣ c₀ ∣ ☐ ］◁ ↦* ［ c₁ ∣ b ∣ ☐⨾ c₂ • ☐ ］▷
-         → ［ c₁ ⨾ c₂ ∣ c₀ ∣ ☐ ］◁ ↦* (toState c₁ c₂ (c₁ ⨾[ b ⃗]⨾ c₂))
-  loop₁⃖ c₁ b c₂ rsₐ with interp c₂ (b ⃗) | inspect (interp c₂) (b ⃗)
-  loop₁⃖ c₁ b c₂ rsₐ | just (c ⃗)  | [ eq ] = rsₐ ++↦ ↦⃗₇ ∷ appendκ↦* (getₜᵣ⃗ c₂ (trans (eval≡interp c₂ (b ⃗)) eq)) (λ ()) (λ ()) refl (c₁ ⨾☐• ☐) ++↦ ↦⃗₁₀ ∷ ◾
-  loop₁⃖ c₁ b c₂ rsₐ | just (b' ⃖) | [ eq ] = loop₂⃖ c₁ b' c₂ (rsₐ ++↦ ↦⃗₇ ∷ appendκ↦* (getₜᵣ⃗ c₂ (trans (eval≡interp c₂ (b ⃗)) eq)) (λ ()) (λ ()) refl (c₁ ⨾☐• ☐) ++↦ ↦⃖₇ ∷ ◾)
-  loop₁⃖ c₁ b c₂ rsₐ | nothing     | [ eq ] = rsₐ ++↦ ↦⃗₇ ∷ appendκ↦*⊠ (getₜᵣ⃗ c₂ (trans (eval≡interp c₂ (b ⃗)) eq)) (λ ()) (c₁ ⨾☐• ☐)
+          rs'' : ⟨ c₂ ∣ b' ∣ c₁ ⨾☐• ☐ ⟩◁ ↦* toState (c₁ ⨾ c₂) x
+          rs'' = proj₁ (deterministic*' rs' rs (is-stuck-toState _ _))
 
-  loop₂⃖ : ∀ {A B C c₀} → (c₁ : A ↔ B) → (b : ⟦ B ⟧) → (c₂ : B ↔ C)
-        → ［ c₁ ⨾ c₂ ∣ c₀ ∣ ☐ ］◁ ↦* ［ c₁ ∣ b ∣ ☐⨾ c₂ • ☐ ］◁
-        → ［ c₁ ⨾ c₂ ∣ c₀ ∣ ☐ ］◁ ↦* (toState c₁ c₂ (c₁ ⨾[ b ⃖]⨾ c₂))
-  loop₂⃖ c₁ b c₂ rsₐ with interp c₁ (b ⃖) | inspect (interp c₁) (b ⃖)
-  loop₂⃖ c₁ b c₂ rsₐ | just (b' ⃗)  | [ eq ] = loop₁⃖ c₁ b' c₂ (rsₐ ++↦ appendκ↦* (getₜᵣ⃖ c₁ (trans (eval≡interp c₁ (b ⃖)) eq)) (λ ()) (λ ()) refl (☐⨾ c₂ • ☐))
-  loop₂⃖ c₁ b c₂ rsₐ | just (a ⃖)   | [ eq ] = rsₐ ++↦ appendκ↦* (getₜᵣ⃖ c₁ (trans (eval≡interp c₁ (b ⃖)) eq)) (λ ()) (λ ()) refl (☐⨾ c₂ • ☐) ++↦ ↦⃖₃ ∷ ◾
-  loop₂⃖ c₁ b c₂ rsₐ | nothing      | [ eq ] = rsₐ ++↦ appendκ↦*⊠ (getₜᵣ⃖ c₁ (trans (eval≡interp c₁ (b ⃖)) eq)) (λ ()) (☐⨾ c₂ • ☐)
+          req : len↦ rs ≡ len↦ rs' + len↦ rs''
+          req = proj₂ (deterministic*' rs' rs (is-stuck-toState _ _))
+
+          le : len↦ rs'' <′ len↦ rs
+          le rewrite req = s≤′s (n≤′m+n _ _)
+        loop₁ rs refl | nothing     | [ eq ] = toState≡₃ (deterministic* rs rs' (is-stuck-toState _ _) (λ ()))
+          where
+          rs' : ［ c₁ ∣ b ∣ ☐⨾ c₂ • ☐ ］▷ ↦* ⊠
+          rs' = ↦⃗₇ ∷ appendκ↦*⊠ (getₜᵣ⃗ c₂ (trans (eval≡interp c₂ (b ⃗)) eq)) (λ ()) (c₁ ⨾☐• ☐)
+        loop₂ : (rs : ⟨ c₂ ∣ b ∣ c₁ ⨾☐• ☐ ⟩◁ ↦* toState (c₁ ⨾ c₂) x) → len↦ rs ≡ n → x ≡ c₁ ⨾[ b ⃖]⨾ c₂
+        loop₂ rs refl with interp c₁ (b ⃖) | inspect (interp c₁) (b ⃖)
+        loop₂ rs refl | just (b' ⃗) | [ eq ] = proj₁ (R (len↦ rs'') le b') rs'' refl
+          where
+          rs' : ⟨ c₂ ∣ b ∣ c₁ ⨾☐• ☐ ⟩◁ ↦* ［ c₁ ∣ b' ∣ ☐⨾ c₂ • ☐ ］▷
+          rs' = ↦⃖₇ ∷ appendκ↦* (getₜᵣ⃖ c₁ (trans (eval≡interp c₁ (b ⃖)) eq)) (λ ()) (λ ()) refl (☐⨾ c₂ • ☐)
+
+          rs'' : ［ c₁ ∣ b' ∣ ☐⨾ c₂ • ☐ ］▷ ↦* toState (c₁ ⨾ c₂) x
+          rs'' = proj₁ (deterministic*' rs' rs (is-stuck-toState _ _))
+
+          req : len↦ rs ≡ len↦ rs' + len↦ rs''
+          req = proj₂ (deterministic*' rs' rs (is-stuck-toState _ _))
+
+          le : len↦ rs'' <′ len↦ rs
+          le rewrite req = s≤′s (n≤′m+n _ _)
+        loop₂ rs refl | just (a ⃖)  | [ eq ] = toState≡₂ (deterministic* rs rs' (is-stuck-toState _ _) (λ ()))
+          where
+          rs' : ⟨ c₂ ∣ b ∣ c₁ ⨾☐• ☐ ⟩◁ ↦* ⟨ c₁ ⨾ c₂ ∣ a ∣ ☐ ⟩◁
+          rs' = ↦⃖₇ ∷ appendκ↦* (getₜᵣ⃖ c₁ (trans (eval≡interp c₁ (b ⃖)) eq)) (λ ()) (λ ()) refl (☐⨾ c₂ • ☐) ++↦ ↦⃖₃ ∷ ◾
+        loop₂ rs refl | nothing     | [ eq ] = toState≡₃ (deterministic* rs rs' (is-stuck-toState _ _) (λ ()))
+          where
+          rs' : ⟨ c₂ ∣ b ∣ c₁ ⨾☐• ☐ ⟩◁ ↦* ⊠
+          rs' = ↦⃖₇ ∷ appendκ↦*⊠ (getₜᵣ⃖ c₁ (trans (eval≡interp c₁ (b ⃖)) eq)) (λ ()) (☐⨾ c₂ • ☐)

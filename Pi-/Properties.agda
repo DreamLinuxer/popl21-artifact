@@ -8,6 +8,7 @@ open import Relation.Binary
 open import Relation.Nullary
 open import Relation.Binary.PropositionalEquality
 open import Data.Nat
+open import Data.Nat.Induction
 open import Data.Nat.Properties
 open import Function using (_∘_)
 open import Base
@@ -59,12 +60,74 @@ Rev* : ∀ {st st'} → st ↦* st' → flip st' ↦* flip st
 Rev* ◾ = ◾
 Rev* (r ∷ rs) = Rev* rs ++↦ (Rev r ∷ ◾)
 
--- Helper function
+-- Helper functions
 inspect⊎ : ∀ {ℓ ℓ' ℓ''} {P : Set ℓ} {Q : Set ℓ'} {R : Set ℓ''}
          → (f : P → Q ⊎ R) → (p : P) → (∃[ q ] (inj₁ q ≡ f p)) ⊎ (∃[ r ] (inj₂ r ≡ f p))
 inspect⊎ f p with f p
 ... | inj₁ q = inj₁ (q , refl)
 ... | inj₂ r = inj₂ (r , refl)
+
+toState : ∀ {A B} → (c : A ↔ B) → Val B A → State
+toState c (b ⃗) = ［ c ∣ b ∣ ☐ ］▷
+toState c (a ⃖) = ⟨ c ∣ a ∣ ☐ ⟩◁
+
+is-stuck-toState : ∀ {A B} → (c : A ↔ B) → (v : Val B A) → is-stuck (toState c v)
+is-stuck-toState c (b ⃗) = λ ()
+is-stuck-toState c (a ⃖) = λ ()
+
+toState≡₁ : ∀ {A B b} {c : A ↔ B} {x : Val B A} → toState c x ≡ ［ c ∣ b ∣ ☐ ］▷ → x ≡ b ⃗
+toState≡₁ {x = x ⃗} refl = refl
+
+toState≡₂ : ∀ {A B a} {c : A ↔ B} {x : Val B A} → toState c x ≡ ⟨ c ∣ a ∣ ☐ ⟩◁ → x ≡ a ⃖
+toState≡₂ {x = x ⃖} refl = refl
+
+eval-toState₁ : ∀ {A B a x} {c : A ↔ B} → ⟨ c ∣ a ∣ ☐ ⟩▷ ↦* (toState c x) → eval c (a ⃗) ≡ x
+eval-toState₁ {a = a} {b ⃗} {c} rs with inspect⊎ (run ⟨ c ∣ a ∣ ☐ ⟩▷) (λ ())
+eval-toState₁ {a = a} {b ⃗} {c} rs | inj₁ ((a' , rs') , eq) with deterministic* rs rs' (λ ()) (λ ())
+... | ()
+eval-toState₁ {a = a} {b ⃗} {c} rs | inj₂ ((b' , rs') , eq) with deterministic* rs rs' (λ ()) (λ ())
+... | refl = subst (λ x → [  _⃖ ∘ proj₁ ,  _⃗ ∘ proj₁ ]′ x ≡ b ⃗) eq refl
+eval-toState₁ {a = a} {a' ⃖} {c} rs with inspect⊎ (run ⟨ c ∣ a ∣ ☐ ⟩▷) (λ ())
+eval-toState₁ {a = a} {a' ⃖} {c} rs | inj₁ ((a'' , rs') , eq) with deterministic* rs rs' (λ ()) (λ ())
+... | refl = subst (λ x → [  _⃖ ∘ proj₁ ,  _⃗ ∘ proj₁ ]′ x ≡ a'' ⃖) eq refl
+eval-toState₁ {a = a} {a' ⃖} {c} rs | inj₂ ((b' , rs') , eq) with deterministic* rs rs' (λ ()) (λ ())
+... | ()
+
+eval-toState₂ : ∀ {A B b x} {c : A ↔ B} → ［ c ∣ b ∣ ☐ ］◁ ↦* (toState c x) → eval c (b ⃖) ≡ x
+eval-toState₂ {b = b} {b' ⃗} {c} rs with inspect⊎ (run ［ c ∣ b ∣ ☐ ］◁) (λ ())
+eval-toState₂ {b = b} {b' ⃗} {c} rs | inj₁ ((a' , rs') , eq) with deterministic* rs rs' (λ ()) (λ ())
+... | ()
+eval-toState₂ {b = b} {b' ⃗} {c} rs | inj₂ ((b'' , rs') , eq) with deterministic* rs rs' (λ ()) (λ ())
+... | refl = subst (λ x → [  _⃖ ∘ proj₁ ,  _⃗ ∘ proj₁ ]′ x ≡ b'' ⃗) eq refl
+eval-toState₂ {b = b} {a ⃖} {c} rs with inspect⊎ (run ［ c ∣ b ∣ ☐ ］◁) (λ ())
+eval-toState₂ {b = b} {a ⃖} {c} rs | inj₁ ((a' , rs') , eq) with deterministic* rs rs' (λ ()) (λ ())
+... | refl = subst (λ x → [  _⃖ ∘ proj₁ ,  _⃗ ∘ proj₁ ]′ x ≡ a' ⃖) eq refl
+eval-toState₂ {b = b} {a ⃖} {c} rs | inj₂ ((b'' , rs') , eq) with deterministic* rs rs' (λ ()) (λ ())
+... | ()
+
+getₜᵣ⃗ : ∀ {A B} → (c : A ↔ B) → {v : ⟦ A ⟧} {v' : Val B A} → eval c (v ⃗) ≡ v'
+       → ⟨ c ∣ v ∣ ☐ ⟩▷ ↦* toState c v'
+getₜᵣ⃗ c {v} {v'} eq with inspect⊎ (run ⟨ c ∣ v ∣ ☐ ⟩▷) (λ ())
+getₜᵣ⃗ c {v} {v' ⃗} eq | inj₁ ((v'' , rs) , eq') with trans (subst (λ x → (v'' ⃖) ≡ [ _⃖ ∘ proj₁ ,  _⃗ ∘ proj₁ ]′ x) eq' refl) eq
+... | ()
+getₜᵣ⃗ c {v} {v' ⃖} eq | inj₁ ((v'' , rs) , eq') with trans (subst (λ x → (v'' ⃖) ≡ [ _⃖ ∘ proj₁ ,  _⃗ ∘ proj₁ ]′ x) eq' refl) eq
+... | refl = rs
+getₜᵣ⃗ c {v} {v' ⃗} eq | inj₂ ((v'' , rs) , eq') with trans (subst (λ x → (v'' ⃗) ≡ [ _⃖ ∘ proj₁ ,  _⃗ ∘ proj₁ ]′ x) eq' refl) eq
+... | refl = rs
+getₜᵣ⃗ c {v} {v' ⃖} eq | inj₂ ((v'' , rs) , eq') with trans (subst (λ x → (v'' ⃗) ≡ [ _⃖ ∘ proj₁ ,  _⃗ ∘ proj₁ ]′ x) eq' refl) eq
+... | ()
+
+getₜᵣ⃖ : ∀ {A B} → (c : A ↔ B) → {v : ⟦ B ⟧} {v' : Val B A} → eval c (v ⃖) ≡ v'
+       → ［ c ∣ v ∣ ☐ ］◁ ↦* toState c v'
+getₜᵣ⃖ c {v} {v'} eq with inspect⊎ (run ［ c ∣ v ∣ ☐ ］◁) (λ ())
+getₜᵣ⃖ c {v} {v' ⃗} eq | inj₁ ((v'' , rs) , eq') with trans (subst (λ x → (v'' ⃖) ≡ [ _⃖ ∘ proj₁ ,  _⃗ ∘ proj₁ ]′ x) eq' refl) eq
+... | ()
+getₜᵣ⃖ c {v} {v' ⃖} eq | inj₁ ((v'' , rs) , eq') with trans (subst (λ x → (v'' ⃖) ≡ [ _⃖ ∘ proj₁ ,  _⃗ ∘ proj₁ ]′ x) eq' refl) eq
+... | refl = rs
+getₜᵣ⃖ c {v} {v' ⃗} eq | inj₂ ((v'' , rs) , eq') with trans (subst (λ x → (v'' ⃗) ≡ [ _⃖ ∘ proj₁ ,  _⃗ ∘ proj₁ ]′ x) eq' refl) eq
+... | refl = rs
+getₜᵣ⃖ c {v} {v' ⃖} eq | inj₂ ((v'' , rs) , eq') with trans (subst (λ x → (v'' ⃗) ≡ [ _⃖ ∘ proj₁ ,  _⃗ ∘ proj₁ ]′ x) eq' refl) eq
+... | ()
 
 -- Forward evaluator is reversible
 evalisRev : ∀ {A B} → (c : A ↔ B) → (v : Val A B) → evalᵣₑᵥ c (eval c v) ≡ v
@@ -124,74 +187,6 @@ evalᵣₑᵥisRev c (v ⃗) | inj₂ ((v' , rs) , eq) | inj₂ ((_ , rs') , eq'
 ... | refl = subst (λ x → eval c ([ _⃗ ∘ proj₁ , _⃖ ∘ proj₁ ]′ x) ≡ (v ⃗)) eq
                    (subst (λ x → [ _⃖ ∘ proj₁ , _⃗ ∘ proj₁ ]′ x ≡ (v ⃗)) eq' refl)
 
-getₜᵣ⃗ : ∀ {A B} → (c : A ↔ B) → {v : ⟦ A ⟧} {v' : Val B A} → eval c (v ⃗) ≡ v'
-       → let tr : Val B A → Set _
-             tr = (λ {(w ⃖) → ⟨ c ∣ v ∣ ☐ ⟩▷ ↦*  ⟨ c ∣ w ∣ ☐ ⟩◁ ;
-                      (w ⃗) → ⟨ c ∣ v ∣ ☐ ⟩▷ ↦* ［ c ∣ w ∣ ☐ ］▷})
-         in  tr v'
-getₜᵣ⃗ c {v} {v'} eq with inspect⊎ (run ⟨ c ∣ v ∣ ☐ ⟩▷) (λ ())
-getₜᵣ⃗ c {v} {v' ⃗} eq | inj₁ ((v'' , rs) , eq') with trans (subst (λ x → (v'' ⃖) ≡ [ _⃖ ∘ proj₁ ,  _⃗ ∘ proj₁ ]′ x) eq' refl) eq
-... | ()
-getₜᵣ⃗ c {v} {v' ⃖} eq | inj₁ ((v'' , rs) , eq') with trans (subst (λ x → (v'' ⃖) ≡ [ _⃖ ∘ proj₁ ,  _⃗ ∘ proj₁ ]′ x) eq' refl) eq
-... | refl = rs
-getₜᵣ⃗ c {v} {v' ⃗} eq | inj₂ ((v'' , rs) , eq') with trans (subst (λ x → (v'' ⃗) ≡ [ _⃖ ∘ proj₁ ,  _⃗ ∘ proj₁ ]′ x) eq' refl) eq
-... | refl = rs
-getₜᵣ⃗ c {v} {v' ⃖} eq | inj₂ ((v'' , rs) , eq') with trans (subst (λ x → (v'' ⃗) ≡ [ _⃖ ∘ proj₁ ,  _⃗ ∘ proj₁ ]′ x) eq' refl) eq
-... | ()
-
-getₜᵣ⃖ : ∀ {A B} → (c : A ↔ B) → {v : ⟦ B ⟧} {v' : Val B A} → eval c (v ⃖) ≡ v'
-       → let tr : Val B A → Set _
-             tr = (λ {(w ⃖) → ［ c ∣ v ∣ ☐ ］◁ ↦*  ⟨ c ∣ w ∣ ☐ ⟩◁ ;
-                      (w ⃗) → ［ c ∣ v ∣ ☐ ］◁ ↦* ［ c ∣ w ∣ ☐ ］▷ })
-         in  tr v'
-getₜᵣ⃖ c {v} {v'} eq with inspect⊎ (run ［ c ∣ v ∣ ☐ ］◁) (λ ())
-getₜᵣ⃖ c {v} {v' ⃗} eq | inj₁ ((v'' , rs) , eq') with trans (subst (λ x → (v'' ⃖) ≡ [ _⃖ ∘ proj₁ ,  _⃗ ∘ proj₁ ]′ x) eq' refl) eq
-... | ()
-getₜᵣ⃖ c {v} {v' ⃖} eq | inj₁ ((v'' , rs) , eq') with trans (subst (λ x → (v'' ⃖) ≡ [ _⃖ ∘ proj₁ ,  _⃗ ∘ proj₁ ]′ x) eq' refl) eq
-... | refl = rs
-getₜᵣ⃖ c {v} {v' ⃗} eq | inj₂ ((v'' , rs) , eq') with trans (subst (λ x → (v'' ⃗) ≡ [ _⃖ ∘ proj₁ ,  _⃗ ∘ proj₁ ]′ x) eq' refl) eq
-... | refl = rs
-getₜᵣ⃖ c {v} {v' ⃖} eq | inj₂ ((v'' , rs) , eq') with trans (subst (λ x → (v'' ⃗) ≡ [ _⃖ ∘ proj₁ ,  _⃗ ∘ proj₁ ]′ x) eq' refl) eq
-... | ()
-
-toState : ∀ {A B} → (c : A ↔ B) → Val B A → State
-toState c (b ⃗) = ［ c ∣ b ∣ ☐ ］▷
-toState c (a ⃖) = ⟨ c ∣ a ∣ ☐ ⟩◁
-
-is-stuck-toState : ∀ {A B} → (c : A ↔ B) → (v : Val B A) → is-stuck (toState c v)
-is-stuck-toState c (b ⃗) = λ ()
-is-stuck-toState c (a ⃖) = λ ()
-
-toStateEq₁ : ∀ {A B b} → (c : A ↔ B) → (x : Val B A) → ［ c ∣ b ∣ ☐ ］▷ ≡ toState c x → b ⃗ ≡ x
-toStateEq₁ c (x ⃗) refl = refl
-
-toStateEq₂ : ∀ {A B a} → (c : A ↔ B) → (x : Val B A) → ⟨ c ∣ a ∣ ☐ ⟩◁ ≡ toState c x → a ⃖ ≡ x
-toStateEq₂ c (x ⃖) refl = refl
-
-eval-toState₁ : ∀ {A B a x} {c : A ↔ B} → ⟨ c ∣ a ∣ ☐ ⟩▷ ↦* (toState c x) → eval c (a ⃗) ≡ x
-eval-toState₁ {a = a} {b ⃗} {c} rs with inspect⊎ (run ⟨ c ∣ a ∣ ☐ ⟩▷) (λ ())
-eval-toState₁ {a = a} {b ⃗} {c} rs | inj₁ ((a' , rs') , eq) with deterministic* rs rs' (λ ()) (λ ())
-... | ()
-eval-toState₁ {a = a} {b ⃗} {c} rs | inj₂ ((b' , rs') , eq) with deterministic* rs rs' (λ ()) (λ ())
-... | refl = subst (λ x → [  _⃖ ∘ proj₁ ,  _⃗ ∘ proj₁ ]′ x ≡ b ⃗) eq refl
-eval-toState₁ {a = a} {a' ⃖} {c} rs with inspect⊎ (run ⟨ c ∣ a ∣ ☐ ⟩▷) (λ ())
-eval-toState₁ {a = a} {a' ⃖} {c} rs | inj₁ ((a'' , rs') , eq) with deterministic* rs rs' (λ ()) (λ ())
-... | refl = subst (λ x → [  _⃖ ∘ proj₁ ,  _⃗ ∘ proj₁ ]′ x ≡ a'' ⃖) eq refl
-eval-toState₁ {a = a} {a' ⃖} {c} rs | inj₂ ((b' , rs') , eq) with deterministic* rs rs' (λ ()) (λ ())
-... | ()
-
-eval-toState₂ : ∀ {A B b x} {c : A ↔ B} → ［ c ∣ b ∣ ☐ ］◁ ↦* (toState c x) → eval c (b ⃖) ≡ x
-eval-toState₂ {b = b} {b' ⃗} {c} rs with inspect⊎ (run ［ c ∣ b ∣ ☐ ］◁) (λ ())
-eval-toState₂ {b = b} {b' ⃗} {c} rs | inj₁ ((a' , rs') , eq) with deterministic* rs rs' (λ ()) (λ ())
-... | ()
-eval-toState₂ {b = b} {b' ⃗} {c} rs | inj₂ ((b'' , rs') , eq) with deterministic* rs rs' (λ ()) (λ ())
-... | refl = subst (λ x → [  _⃖ ∘ proj₁ ,  _⃗ ∘ proj₁ ]′ x ≡ b'' ⃗) eq refl
-eval-toState₂ {b = b} {a ⃖} {c} rs with inspect⊎ (run ［ c ∣ b ∣ ☐ ］◁) (λ ())
-eval-toState₂ {b = b} {a ⃖} {c} rs | inj₁ ((a' , rs') , eq) with deterministic* rs rs' (λ ()) (λ ())
-... | refl = subst (λ x → [  _⃖ ∘ proj₁ ,  _⃗ ∘ proj₁ ]′ x ≡ a' ⃖) eq refl
-eval-toState₂ {b = b} {a ⃖} {c} rs | inj₂ ((b'' , rs') , eq) with deterministic* rs rs' (λ ()) (λ ())
-... | ()
-
 -- The abstract machine semantics is equivalent to the big-step semantics
 module eval≡interp where
   mutual
@@ -240,514 +235,296 @@ module eval≡interp where
     eval≡interp factor ((inj₂ y , z) ⃖) = refl
     eval≡interp id↔ (v ⃗) = refl
     eval≡interp id↔ (v ⃖) = refl
-    eval≡interp (c₁ ⨾ c₂) (a ⃗) with inspect⊎ (run ⟨ c₁ ⨾ c₂ ∣ a ∣ ☐ ⟩▷) (λ ()) | interp c₁ (a ⃗) | inspect (interp c₁) (a ⃗)
-    eval≡interp (c₁ ⨾ c₂) (a ⃗) | inj₁ ((a' , rs) , eq) | b ⃗   | [ eq' ] = lem
+    eval≡interp (c₁ ⨾ c₂) (a ⃗) with interp c₁ (a ⃗) | inspect (interp c₁) (a ⃗)
+    eval≡interp (c₁ ⨾ c₂) (a ⃗) | b ⃗  | [ eq ] = (proj₁ (loop (len↦ rs') b) rs' refl)
       where
-      rs' : ⟨ c₁ ⨾ c₂ ∣ a ∣ ☐ ⟩▷ ↦* (toState (c₁ ⨾ c₂) (c₁ ⨾[ b ⃗]⨾ c₂))
-      rs' = loop₁⃗ c₁ b c₂ (↦⃗₃ ∷ appendκ↦* ((getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (a ⃗)) eq'))) refl (☐⨾ c₂ • ☐))
-
-      lem : eval (c₁ ⨾ c₂) (a ⃗) ≡ (c₁ ⨾[ b ⃗]⨾ c₂)
-      lem with deterministic* rs rs' (λ ()) (is-stuck-toState _ _)
-      ... | eq' = subst (λ x → [  _⃖ ∘ proj₁ ,  _⃗ ∘ proj₁ ]′ x ≡ (c₁ ⨾[ b ⃗]⨾ c₂)) eq (toStateEq₂ (c₁ ⨾ c₂) (c₁ ⨾[ b ⃗]⨾ c₂) eq')
-    eval≡interp (c₁ ⨾ c₂) (a ⃗) | inj₁ ((a' , rs) , eq) | a'' ⃖ | [ eq' ] = lem
+      rs : ⟨ c₁ ⨾ c₂ ∣ a ∣ ☐ ⟩▷ ↦* toState (c₁ ⨾ c₂) (eval (c₁ ⨾ c₂) (a ⃗))
+      rs = getₜᵣ⃗ (c₁ ⨾ c₂) refl
+      
+      rs' : ［ c₁ ∣ b ∣ ☐⨾ c₂ • ☐ ］▷ ↦* toState (c₁ ⨾ c₂) (eval (c₁ ⨾ c₂) (a ⃗))
+      rs' = proj₁ (deterministic*' (↦⃗₃ ∷ appendκ↦* ((getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (a ⃗)) eq))) refl (☐⨾ c₂ • ☐)) rs (is-stuck-toState _ _))
+    eval≡interp (c₁ ⨾ c₂) (a ⃗) | a' ⃖ | [ eq ] = eval-toState₁ rs
       where
-      rs' : ⟨ c₁ ⨾ c₂ ∣ a ∣ ☐ ⟩▷ ↦* ⟨ c₁ ⨾ c₂ ∣ a'' ∣ ☐ ⟩◁
-      rs' = ↦⃗₃ ∷ appendκ↦* (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (a ⃗)) eq')) refl (☐⨾ c₂ • ☐) ++↦ ↦⃖₃ ∷ ◾
-
-      lem : eval (c₁ ⨾ c₂) (a ⃗) ≡ a'' ⃖
-      lem with deterministic* rs rs' (λ ()) (λ ())
-      ... | refl = subst (λ x → [ (λ x → proj₁ x ⃖) , (λ x → proj₁ x ⃗) ]′ x ≡ a' ⃖) eq refl
-    eval≡interp (c₁ ⨾ c₂) (a ⃗) | inj₂ ((c , rs) , eq) | b ⃗  | [ eq' ] = lem
+      rs : ⟨ c₁ ⨾ c₂ ∣ a ∣ ☐ ⟩▷ ↦* ⟨ c₁ ⨾ c₂ ∣ a' ∣ ☐ ⟩◁
+      rs = ↦⃗₃ ∷ appendκ↦* (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (a ⃗)) eq)) refl (☐⨾ c₂ • ☐) ++↦ ↦⃖₃ ∷ ◾
+    eval≡interp (c₁ ⨾ c₂) (c ⃖) with interp c₂ (c ⃖) | inspect (interp c₂) (c ⃖)
+    eval≡interp (c₁ ⨾ c₂) (c ⃖) | b ⃖ | [ eq' ] = proj₂ (loop (len↦ rs') b) rs' refl
       where
-      rs' : ⟨ c₁ ⨾ c₂ ∣ a ∣ ☐ ⟩▷ ↦* (toState (c₁ ⨾ c₂) (c₁ ⨾[ b ⃗]⨾ c₂))
-      rs' = loop₁⃗ c₁ b c₂ (↦⃗₃ ∷ appendκ↦* ((getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (a ⃗)) eq'))) refl (☐⨾ c₂ • ☐))
-
-      lem : eval (c₁ ⨾ c₂) (a ⃗) ≡ (c₁ ⨾[ b ⃗]⨾ c₂)
-      lem with deterministic* rs rs' (λ ()) (is-stuck-toState _ _)
-      ... | eq' = subst (λ x → [  _⃖ ∘ proj₁ , _⃗ ∘ proj₁ ]′ x ≡ (c₁ ⨾[ b ⃗]⨾ c₂)) eq (toStateEq₁ (c₁ ⨾ c₂) (c₁ ⨾[ b ⃗]⨾ c₂) eq')
-    eval≡interp (c₁ ⨾ c₂) (a ⃗) | inj₂ ((c , rs) , eq) | a' ⃖ | [ eq' ] = lem
+      rs : ［ c₁ ⨾ c₂ ∣ c ∣ ☐ ］◁ ↦* toState (c₁ ⨾ c₂) (eval (c₁ ⨾ c₂) (c ⃖))
+      rs = getₜᵣ⃖ (c₁ ⨾ c₂) refl
+      
+      rs' : ⟨ c₂ ∣ b ∣ c₁ ⨾☐• ☐ ⟩◁ ↦* toState (c₁ ⨾ c₂) (eval (c₁ ⨾ c₂) (c ⃖))
+      rs' = proj₁ (deterministic*' (↦⃖₁₀ ∷ appendκ↦* ((getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (c ⃖)) eq'))) refl (c₁ ⨾☐• ☐)) rs (is-stuck-toState _ _))
+    eval≡interp (c₁ ⨾ c₂) (c ⃖) | (c' ⃗) | [ eq ] = eval-toState₂ rs
       where
-      rs' : ⟨ c₁ ⨾ c₂ ∣ a ∣ ☐ ⟩▷ ↦* ⟨ c₁ ⨾ c₂ ∣ a' ∣ ☐ ⟩◁
-      rs' = ↦⃗₃ ∷ appendκ↦* (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (a ⃗)) eq')) refl (☐⨾ c₂ • ☐) ++↦ ↦⃖₃ ∷ ◾
-
-      lem : eval (c₁ ⨾ c₂) (a ⃗) ≡ a' ⃖
-      lem with deterministic* rs rs' (λ ()) (λ ())
-      ... | ()
-    eval≡interp (c₁ ⨾ c₂) (c ⃖) with inspect⊎ (run ［ c₁ ⨾ c₂ ∣ c ∣ ☐ ］◁) (λ ()) | interp c₂ (c ⃖) | inspect (interp c₂) (c ⃖)
-    eval≡interp (c₁ ⨾ c₂) (c ⃖) | inj₁ ((c' , rs) , eq) | (b ⃖)   | [ eq' ] = lem
+      rs : ［ c₁ ⨾ c₂ ∣ c ∣ ☐ ］◁ ↦* ［ c₁ ⨾ c₂ ∣ c' ∣ ☐ ］▷
+      rs = ↦⃖₁₀ ∷ appendκ↦* (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (c ⃖)) eq)) refl (c₁ ⨾☐• ☐) ++↦ ↦⃗₁₀ ∷ ◾
+    eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃗) with interp c₁ (x ⃗) | inspect (interp c₁) (x ⃗)
+    eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃗) | x' ⃗ | [ eq ] = eval-toState₁ rs
       where
-      rs' : ［ c₁ ⨾ c₂ ∣ c ∣ ☐ ］◁ ↦* (toState (c₁ ⨾ c₂) (c₁ ⨾[ b ⃖]⨾ c₂))
-      rs' = loop₂⃖ c₁ b c₂ (↦⃖₁₀ ∷ appendκ↦* ((getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (c ⃖)) eq'))) refl (c₁ ⨾☐• ☐) ++↦ ↦⃖₇ ∷ ◾)
-
-      lem : eval (c₁ ⨾ c₂) (c ⃖) ≡ (c₁ ⨾[ b ⃖]⨾ c₂)
-      lem with deterministic* rs rs' (λ ()) (is-stuck-toState _ _)
-      ... | eq' = subst (λ x → [ _⃖ ∘ proj₁ , _⃗ ∘ proj₁ ]′ x ≡ (c₁ ⨾[ b ⃖]⨾ c₂)) eq (toStateEq₂ (c₁ ⨾ c₂) (c₁ ⨾[ b ⃖]⨾ c₂) eq')
-    eval≡interp (c₁ ⨾ c₂) (c ⃖) | inj₁ ((c' , rs) , eq) | (c'' ⃗) | [ eq' ] = lem
+      rs : ⟨ c₁ ⊕ c₂ ∣ inj₁ x ∣ ☐ ⟩▷ ↦* ［ c₁ ⊕ c₂ ∣ inj₁ x' ∣ ☐ ］▷
+      rs = ↦⃗₄ ∷ appendκ↦* (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (x ⃗)) eq)) refl (☐⊕ c₂ • ☐) ++↦ ↦⃗₁₁ ∷ ◾
+    eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃗) | x' ⃖ | [ eq ] = eval-toState₁ rs
       where
-      rs' : ［ c₁ ⨾ c₂ ∣ c ∣ ☐ ］◁ ↦* ［ c₁ ⨾ c₂ ∣ c'' ∣ ☐ ］▷
-      rs' = ↦⃖₁₀ ∷ appendκ↦* (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (c ⃖)) eq')) refl (c₁ ⨾☐• ☐) ++↦ ↦⃗₁₀ ∷ ◾
-
-      lem : eval (c₁ ⨾ c₂) (c ⃖) ≡ c'' ⃗
-      lem with deterministic* rs rs' (λ ()) (λ ())
-      ... | ()
-    eval≡interp (c₁ ⨾ c₂) (c ⃖) | inj₂ ((a  , rs) , eq) | (c' ⃗) | [ eq' ] = lem
+      rs : ⟨ c₁ ⊕ c₂ ∣ inj₁ x ∣ ☐ ⟩▷ ↦* ⟨ c₁ ⊕ c₂ ∣ inj₁ x' ∣ ☐ ⟩◁
+      rs = ↦⃗₄ ∷ appendκ↦* (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (x ⃗)) eq)) refl (☐⊕ c₂ • ☐) ++↦ ↦⃖₄ ∷ ◾
+    eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃗) with interp c₂ (y ⃗) | inspect (interp c₂) (y ⃗)
+    eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃗) | y' ⃗ | [ eq ] = eval-toState₁ rs
       where
-      rs' : ［ c₁ ⨾ c₂ ∣ c ∣ ☐ ］◁ ↦* ［ c₁ ⨾ c₂ ∣ c' ∣ ☐ ］▷
-      rs' = ↦⃖₁₀ ∷ appendκ↦* (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (c ⃖)) eq')) refl (c₁ ⨾☐• ☐) ++↦ ↦⃗₁₀ ∷ ◾
-
-      lem : eval (c₁ ⨾ c₂) (c ⃖) ≡ c' ⃗
-      lem with deterministic* rs rs' (λ ()) (λ ())
-      ... | refl = subst (λ z → [ (λ x → proj₁ x ⃖) , (λ x → proj₁ x ⃗) ]′ z ≡ c' ⃗) eq refl
-    eval≡interp (c₁ ⨾ c₂) (c ⃖) | inj₂ ((a  , rs) , eq) | (b ⃖)  | [ eq' ] = lem
+      rs : ⟨ c₁ ⊕ c₂ ∣ inj₂ y ∣ ☐ ⟩▷ ↦* ［ c₁ ⊕ c₂ ∣ inj₂ y' ∣ ☐ ］▷
+      rs = ↦⃗₅ ∷ appendκ↦* (getₜᵣ⃗ c₂ (trans (eval≡interp c₂ (y ⃗)) eq)) refl (c₁ ⊕☐• ☐) ++↦ ↦⃗₁₂ ∷ ◾
+    eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃗) | y' ⃖ | [ eq ] = eval-toState₁ rs
       where
-      rs' : ［ c₁ ⨾ c₂ ∣ c ∣ ☐ ］◁ ↦* (toState (c₁ ⨾ c₂) (c₁ ⨾[ b ⃖]⨾ c₂))
-      rs' = loop₂⃖ c₁ b c₂ (↦⃖₁₀ ∷ appendκ↦* ((getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (c ⃖)) eq'))) refl (c₁ ⨾☐• ☐) ++↦ ↦⃖₇ ∷ ◾)
-
-      lem : eval (c₁ ⨾ c₂) (c ⃖) ≡ (c₁ ⨾[ b ⃖]⨾ c₂)
-      lem with deterministic* rs rs' (λ ()) (is-stuck-toState _ _)
-      ... | eq' = subst (λ x → [ _⃖ ∘ proj₁ , _⃗ ∘ proj₁ ]′ x ≡ (c₁ ⨾[ b ⃖]⨾ c₂)) eq (toStateEq₁ (c₁ ⨾ c₂) (c₁ ⨾[ b ⃖]⨾ c₂) eq')
-    eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃗) with inspect⊎ (run ⟨ c₁ ⊕ c₂ ∣ inj₁ x ∣ ☐ ⟩▷) (λ ()) | interp c₁ (x ⃗) | inspect (interp c₁) (x ⃗)
-    eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃗) | inj₁ ((x' , rs) , eq) | x₁ ⃗ | [ eq' ] = lem
+      rs : ⟨ c₁ ⊕ c₂ ∣ inj₂ y ∣ ☐ ⟩▷ ↦* ⟨ c₁ ⊕ c₂ ∣ inj₂ y' ∣ ☐ ⟩◁
+      rs = ↦⃗₅ ∷ appendκ↦* (getₜᵣ⃗ c₂ (trans (eval≡interp c₂ (y ⃗)) eq)) refl (c₁ ⊕☐• ☐) ++↦ ↦⃖₅ ∷ ◾
+    eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃖) with interp c₁ (x ⃖) | inspect (interp c₁) (x ⃖)
+    eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃖) | x' ⃗ | [ eq ] = eval-toState₂ rs
       where
-      rs' : ⟨ c₁ ⊕ c₂ ∣ inj₁ x ∣ ☐ ⟩▷ ↦* ［ c₁ ⊕ c₂ ∣ inj₁ x₁ ∣ ☐ ］▷
-      rs' = ↦⃗₄ ∷ appendκ↦* (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (x ⃗)) eq')) refl (☐⊕ c₂ • ☐) ++↦ ↦⃗₁₁ ∷ ◾
-
-      lem : eval (c₁ ⊕ c₂) (inj₁ x ⃗) ≡ inj₁ x₁ ⃗
-      lem with deterministic* rs rs' (λ ()) (λ ())
-      ... | ()
-    eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃗) | inj₁ ((x' , rs) , eq) | x₁ ⃖ | [ eq' ] = lem
+      rs : ［ c₁ ⊕ c₂ ∣ inj₁ x ∣ ☐ ］◁ ↦* ［ c₁ ⊕ c₂ ∣ inj₁ x' ∣ ☐ ］▷
+      rs = ↦⃖₁₁ ∷ appendκ↦* (getₜᵣ⃖ c₁ (trans (eval≡interp c₁ (x ⃖)) eq)) refl (☐⊕ c₂ • ☐) ++↦ ↦⃗₁₁ ∷ ◾
+    eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃖) | x' ⃖ | [ eq ] = eval-toState₂ rs
       where
-      rs' : ⟨ c₁ ⊕ c₂ ∣ inj₁ x ∣ ☐ ⟩▷ ↦* ⟨ c₁ ⊕ c₂ ∣ inj₁ x₁ ∣ ☐ ⟩◁
-      rs' = ↦⃗₄ ∷ appendκ↦* (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (x ⃗)) eq')) refl (☐⊕ c₂ • ☐) ++↦ ↦⃖₄ ∷ ◾
-
-      lem : eval (c₁ ⊕ c₂) (inj₁ x ⃗) ≡ inj₁ x₁ ⃖
-      lem with deterministic* rs rs' (λ ()) (λ ())
-      ... | refl = subst (λ x → [ (λ x → proj₁ x ⃖) , (λ x → proj₁ x ⃗) ]′ x ≡ inj₁ x₁ ⃖) eq refl
-    eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃗) | inj₂ ((x' , rs) , eq) | x₁ ⃗ | [ eq' ] = lem
+      rs : ［ c₁ ⊕ c₂ ∣ inj₁ x ∣ ☐ ］◁ ↦* ⟨ c₁ ⊕ c₂ ∣ inj₁ x' ∣ ☐ ⟩◁
+      rs = ↦⃖₁₁ ∷ appendκ↦* (getₜᵣ⃖ c₁ (trans (eval≡interp c₁ (x ⃖)) eq)) refl (☐⊕ c₂ • ☐) ++↦ ↦⃖₄ ∷ ◾
+    eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃖) with interp c₂ (y ⃖) | inspect (interp c₂) (y ⃖)
+    eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃖) | y' ⃖ | [ eq ] = eval-toState₂ rs
       where
-      rs' : ⟨ c₁ ⊕ c₂ ∣ inj₁ x ∣ ☐ ⟩▷ ↦* ［ c₁ ⊕ c₂ ∣ inj₁ x₁ ∣ ☐ ］▷
-      rs' = ↦⃗₄ ∷ appendκ↦* (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (x ⃗)) eq')) refl (☐⊕ c₂ • ☐) ++↦ ↦⃗₁₁ ∷ ◾
-
-      lem : eval (c₁ ⊕ c₂) (inj₁ x ⃗) ≡ inj₁ x₁ ⃗
-      lem with deterministic* rs rs' (λ ()) (λ ())
-      ... | refl = subst (λ x → [ (λ x → proj₁ x ⃖) , (λ x → proj₁ x ⃗) ]′ x ≡ inj₁ x₁ ⃗) eq refl
-    eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃗) | inj₂ ((x' , rs) , eq) | x₁ ⃖ | [ eq' ] = lem
+      rs : ［ c₁ ⊕ c₂ ∣ inj₂ y ∣ ☐ ］◁ ↦* ⟨ c₁ ⊕ c₂ ∣ inj₂ y' ∣ ☐ ⟩◁
+      rs = ↦⃖₁₂ ∷ appendκ↦* (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (y ⃖)) eq)) refl (c₁ ⊕☐• ☐) ++↦ ↦⃖₅ ∷ ◾
+    eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃖) | y' ⃗ | [ eq ] = eval-toState₂ rs
       where
-      rs' : ⟨ c₁ ⊕ c₂ ∣ inj₁ x ∣ ☐ ⟩▷ ↦* ⟨ c₁ ⊕ c₂ ∣ inj₁ x₁ ∣ ☐ ⟩◁
-      rs' = ↦⃗₄ ∷ appendκ↦* (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (x ⃗)) eq')) refl (☐⊕ c₂ • ☐) ++↦ ↦⃖₄ ∷ ◾
-
-      lem : eval (c₁ ⊕ c₂) (inj₁ x ⃗) ≡ inj₁ x₁ ⃖
-      lem with deterministic* rs rs' (λ ()) (λ ())
-      ... | ()
-    eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃗) with inspect⊎ (run ⟨ c₁ ⊕ c₂ ∣ inj₂ y ∣ ☐ ⟩▷) (λ ()) | interp c₂ (y ⃗) | inspect (interp c₂) (y ⃗)
-    eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃗) | inj₁ ((y' , rs) , eq) | y₁ ⃗ | [ eq' ] = lem
-      where
-      rs' : ⟨ c₁ ⊕ c₂ ∣ inj₂ y ∣ ☐ ⟩▷ ↦* ［ c₁ ⊕ c₂ ∣ inj₂ y₁ ∣ ☐ ］▷
-      rs' = ↦⃗₅ ∷ appendκ↦* (getₜᵣ⃗ c₂ (trans (eval≡interp c₂ (y ⃗)) eq')) refl (c₁ ⊕☐• ☐) ++↦ ↦⃗₁₂ ∷ ◾
-
-      lem : eval (c₁ ⊕ c₂) (inj₂ y ⃗) ≡ inj₂ y₁ ⃗
-      lem with deterministic* rs rs' (λ ()) (λ ())
-      ... | ()
-    eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃗) | inj₁ ((y' , rs) , eq) | y₁ ⃖ | [ eq' ] = lem
-      where
-      rs' : ⟨ c₁ ⊕ c₂ ∣ inj₂ y ∣ ☐ ⟩▷ ↦* ⟨ c₁ ⊕ c₂ ∣ inj₂ y₁ ∣ ☐ ⟩◁
-      rs' = ↦⃗₅ ∷ appendκ↦* (getₜᵣ⃗ c₂ (trans (eval≡interp c₂ (y ⃗)) eq')) refl (c₁ ⊕☐• ☐) ++↦ ↦⃖₅ ∷ ◾
-
-      lem : eval (c₁ ⊕ c₂) (inj₂ y ⃗) ≡ inj₂ y₁ ⃖
-      lem with deterministic* rs rs' (λ ()) (λ ())
-      ... | refl = subst (λ x → [ (λ x → proj₁ x ⃖) , (λ x → proj₁ x ⃗) ]′ x ≡ inj₂ y₁ ⃖) eq refl
-    eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃗) | inj₂ ((y' , rs) , eq) | y₁ ⃗ | [ eq' ] = lem
-      where
-      rs' : ⟨ c₁ ⊕ c₂ ∣ inj₂ y ∣ ☐ ⟩▷ ↦* ［ c₁ ⊕ c₂ ∣ inj₂ y₁ ∣ ☐ ］▷
-      rs' = ↦⃗₅ ∷ appendκ↦* (getₜᵣ⃗ c₂ (trans (eval≡interp c₂ (y ⃗)) eq')) refl (c₁ ⊕☐• ☐) ++↦ ↦⃗₁₂ ∷ ◾
-
-      lem : eval (c₁ ⊕ c₂) (inj₂ y ⃗) ≡ inj₂ y₁ ⃗
-      lem with deterministic* rs rs' (λ ()) (λ ())
-      ... | refl = subst (λ x → [ (λ x → proj₁ x ⃖) , (λ x → proj₁ x ⃗) ]′ x ≡ inj₂ y₁ ⃗) eq refl
-    eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃗) | inj₂ ((y' , rs) , eq) | y₁ ⃖ | [ eq' ] = lem
-      where
-      rs' : ⟨ c₁ ⊕ c₂ ∣ inj₂ y ∣ ☐ ⟩▷ ↦* ⟨ c₁ ⊕ c₂ ∣ inj₂ y₁ ∣ ☐ ⟩◁
-      rs' = ↦⃗₅ ∷ appendκ↦* (getₜᵣ⃗ c₂ (trans (eval≡interp c₂ (y ⃗)) eq')) refl (c₁ ⊕☐• ☐) ++↦ ↦⃖₅ ∷ ◾
-
-      lem : eval (c₁ ⊕ c₂) (inj₂ y ⃗) ≡ inj₂ y₁ ⃖
-      lem with deterministic* rs rs' (λ ()) (λ ())
-      ... | ()
-    eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃖) with inspect⊎ (run ［ c₁ ⊕ c₂ ∣ inj₁ x ∣ ☐ ］◁) (λ ()) | interp c₁ (x ⃖) | inspect (interp c₁) (x ⃖)
-    eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃖) | inj₁ ((x' , rs) , eq) | x₁ ⃗ | [ eq' ] = lem
-      where
-      rs' : ［ c₁ ⊕ c₂ ∣ inj₁ x ∣ ☐ ］◁ ↦* ［ c₁ ⊕ c₂ ∣ inj₁ x₁ ∣ ☐ ］▷
-      rs' = ↦⃖₁₁ ∷ appendκ↦* (getₜᵣ⃖ c₁ (trans (eval≡interp c₁ (x ⃖)) eq')) refl (☐⊕ c₂ • ☐) ++↦ ↦⃗₁₁ ∷ ◾
-
-      lem : eval (c₁ ⊕ c₂) (inj₁ x ⃖) ≡ inj₁ x₁ ⃗
-      lem with deterministic* rs rs' (λ ()) (λ ())
-      ... | ()
-    eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃖) | inj₁ ((x' , rs) , eq) | x₁ ⃖ | [ eq' ] = lem
-      where
-      rs' : ［ c₁ ⊕ c₂ ∣ inj₁ x ∣ ☐ ］◁ ↦* ⟨ c₁ ⊕ c₂ ∣ inj₁ x₁ ∣ ☐ ⟩◁
-      rs' = ↦⃖₁₁ ∷ appendκ↦* (getₜᵣ⃖ c₁ (trans (eval≡interp c₁ (x ⃖)) eq')) refl (☐⊕ c₂ • ☐) ++↦ ↦⃖₄ ∷ ◾
-
-      lem : eval (c₁ ⊕ c₂) (inj₁ x ⃖) ≡ inj₁ x₁ ⃖
-      lem with deterministic* rs rs' (λ ()) (λ ())
-      ... | refl = subst (λ x → [ (λ x → proj₁ x ⃖) , (λ x → proj₁ x ⃗) ]′ x ≡ inj₁ x₁ ⃖) eq refl
-    eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃖) | inj₂ ((x' , rs) , eq) | x₁ ⃗ | [ eq' ] = lem
-      where
-      rs' : ［ c₁ ⊕ c₂ ∣ inj₁ x ∣ ☐ ］◁ ↦* ［ c₁ ⊕ c₂ ∣ inj₁ x₁ ∣ ☐ ］▷
-      rs' = ↦⃖₁₁ ∷ appendκ↦* (getₜᵣ⃖ c₁ (trans (eval≡interp c₁ (x ⃖)) eq')) refl (☐⊕ c₂ • ☐) ++↦ ↦⃗₁₁ ∷ ◾
-
-      lem : eval (c₁ ⊕ c₂) (inj₁ x ⃖) ≡ inj₁ x₁ ⃗
-      lem with deterministic* rs rs' (λ ()) (λ ())
-      ... | refl = subst (λ x → [ (λ x → proj₁ x ⃖) , (λ x → proj₁ x ⃗) ]′ x ≡ inj₁ x₁ ⃗) eq refl
-    eval≡interp (c₁ ⊕ c₂) (inj₁ x ⃖) | inj₂ ((x' , rs) , eq) | x₁ ⃖ | [ eq' ] = lem
-      where
-      rs' : ［ c₁ ⊕ c₂ ∣ inj₁ x ∣ ☐ ］◁ ↦* ⟨ c₁ ⊕ c₂ ∣ inj₁ x₁ ∣ ☐ ⟩◁
-      rs' = ↦⃖₁₁ ∷ appendκ↦* (getₜᵣ⃖ c₁ (trans (eval≡interp c₁ (x ⃖)) eq')) refl (☐⊕ c₂ • ☐) ++↦ ↦⃖₄ ∷ ◾
-
-      lem : eval (c₁ ⊕ c₂) (inj₁ x ⃖) ≡ inj₁ x₁ ⃖
-      lem with deterministic* rs rs' (λ ()) (λ ())
-      ... | ()
-    eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃖) with inspect⊎ (run ［ c₁ ⊕ c₂ ∣ inj₂ y ∣ ☐ ］◁) (λ ()) | interp c₂ (y ⃖) | inspect (interp c₂) (y ⃖)
-    eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃖) | inj₁ ((y' , rs) , eq) | y₁ ⃖ | [ eq' ] = lem
-      where
-      rs' : ［ c₁ ⊕ c₂ ∣ inj₂ y ∣ ☐ ］◁ ↦* ⟨ c₁ ⊕ c₂ ∣ inj₂ y₁ ∣ ☐ ⟩◁
-      rs' = ↦⃖₁₂ ∷ appendκ↦* (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (y ⃖)) eq')) refl (c₁ ⊕☐• ☐) ++↦ ↦⃖₅ ∷ ◾
-
-      lem : eval (c₁ ⊕ c₂) (inj₂ y ⃖) ≡ inj₂ y₁ ⃖
-      lem with deterministic* rs rs' (λ ()) (λ ())
-      ... | refl = subst (λ x → [ (λ x → proj₁ x ⃖) , (λ x → proj₁ x ⃗) ]′ x ≡ inj₂ y₁ ⃖) eq refl
-    eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃖) | inj₁ ((y' , rs) , eq) | y₁ ⃗ | [ eq' ] = lem
-      where
-      rs' : ［ c₁ ⊕ c₂ ∣ inj₂ y ∣ ☐ ］◁ ↦* ［ c₁ ⊕ c₂ ∣ inj₂ y₁ ∣ ☐ ］▷
-      rs' = ↦⃖₁₂ ∷ appendκ↦* (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (y ⃖)) eq')) refl (c₁ ⊕☐• ☐) ++↦ ↦⃗₁₂ ∷ ◾
-
-      lem : eval (c₁ ⊕ c₂) (inj₂ y ⃖) ≡ inj₂ y₁ ⃗
-      lem with deterministic* rs rs' (λ ()) (λ ())
-      ... | ()
-    eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃖) | inj₂ ((y' , rs) , eq) | y₁ ⃖ | [ eq' ] = lem
-      where
-      rs' : ［ c₁ ⊕ c₂ ∣ inj₂ y ∣ ☐ ］◁ ↦* ⟨ c₁ ⊕ c₂ ∣ inj₂ y₁ ∣ ☐ ⟩◁
-      rs' = ↦⃖₁₂ ∷ appendκ↦* (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (y ⃖)) eq')) refl (c₁ ⊕☐• ☐) ++↦ ↦⃖₅ ∷ ◾
-
-      lem : eval (c₁ ⊕ c₂) (inj₂ y ⃖) ≡ inj₂ y₁ ⃖
-      lem with deterministic* rs rs' (λ ()) (λ ())
-      ... | ()
-    eval≡interp (c₁ ⊕ c₂) (inj₂ y ⃖) | inj₂ ((y' , rs) , eq) | y₁ ⃗ | [ eq' ] = lem
-      where
-      rs' : ［ c₁ ⊕ c₂ ∣ inj₂ y ∣ ☐ ］◁ ↦* ［ c₁ ⊕ c₂ ∣ inj₂ y₁ ∣ ☐ ］▷
-      rs' = ↦⃖₁₂ ∷ appendκ↦* (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (y ⃖)) eq')) refl (c₁ ⊕☐• ☐) ++↦ ↦⃗₁₂ ∷ ◾
-
-      lem : eval (c₁ ⊕ c₂) (inj₂ y ⃖) ≡ inj₂ y₁ ⃗
-      lem with deterministic* rs rs' (λ ()) (λ ())
-      ... | refl = subst (λ x → [ (λ x → proj₁ x ⃖) , (λ x → proj₁ x ⃗) ]′ x ≡ inj₂ y₁ ⃗) eq refl
-    eval≡interp (c₁ ⊗ c₂) ((x , y) ⃗) with inspect⊎ (run ⟨ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ⟩▷) (λ ()) | interp c₁ (x ⃗) | inspect (interp c₁) (x ⃗)
-    eval≡interp (c₁ ⊗ c₂) ((x , y) ⃗) | inj₁ (((x' , y') , rs) , eq) | x₁ ⃗ | [ eq₁ ] with interp c₂ (y ⃗) | inspect (interp c₂) (y ⃗)
-    eval≡interp (c₁ ⊗ c₂) ((x , y) ⃗) | inj₁ (((x' , y') , rs) , eq) | x₁ ⃗ | [ eq₁ ] | y₁ ⃗ | [ eq₂ ] = lem
+      rs : ［ c₁ ⊕ c₂ ∣ inj₂ y ∣ ☐ ］◁ ↦* ［ c₁ ⊕ c₂ ∣ inj₂ y' ∣ ☐ ］▷
+      rs = ↦⃖₁₂ ∷ appendκ↦* (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (y ⃖)) eq)) refl (c₁ ⊕☐• ☐) ++↦ ↦⃗₁₂ ∷ ◾
+    eval≡interp (c₁ ⊗ c₂) ((x , y) ⃗) with interp c₁ (x ⃗) | inspect (interp c₁) (x ⃗)
+    eval≡interp (c₁ ⊗ c₂) ((x , y) ⃗) | x₁ ⃗ | [ eq₁ ] with interp c₂ (y ⃗) | inspect (interp c₂) (y ⃗)
+    eval≡interp (c₁ ⊗ c₂) ((x , y) ⃗) | x₁ ⃗ | [ eq₁ ] | y₁ ⃗ | [ eq₂ ] = eval-toState₁ rs'
       where
       rs' : ⟨ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ⟩▷ ↦* ［ c₁ ⊗ c₂ ∣ (x₁ , y₁) ∣ ☐ ］▷
       rs' = ↦⃗₆ ∷ appendκ↦* (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (x ⃗)) eq₁)) refl (☐⊗[ c₂ , y ]• ☐) ++↦
             ↦⃗₈ ∷ appendκ↦* (getₜᵣ⃗ c₂ (trans (eval≡interp c₂ (y ⃗)) eq₂)) refl ([ c₁ , x₁ ]⊗☐• ☐) ++↦ ↦⃗₉ ∷ ◾
-
-      lem : eval (c₁ ⊗ c₂) ((x , y) ⃗) ≡ (x₁ , y₁) ⃗
-      lem with deterministic* rs rs' (λ ()) (λ ())
-      ... | ()
-    eval≡interp (c₁ ⊗ c₂) ((x , y) ⃗) | inj₁ (((x' , y') , rs) , eq) | x₁ ⃗ | [ eq₁ ] | y₁ ⃖ | [ eq₂ ] = lem
+    eval≡interp (c₁ ⊗ c₂) ((x , y) ⃗) | x₁ ⃗ | [ eq₁ ] | y₁ ⃖ | [ eq₂ ] = eval-toState₁ rs'
       where
       rs' : ⟨ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ⟩▷ ↦* ⟨ c₁ ⊗ c₂ ∣ (x , y₁) ∣ ☐ ⟩◁
       rs' = ↦⃗₆ ∷ appendκ↦* (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (x ⃗)) eq₁)) refl (☐⊗[ c₂ , y ]• ☐) ++↦
             ↦⃗₈ ∷ appendκ↦* (getₜᵣ⃗ c₂ (trans (eval≡interp c₂ (y ⃗)) eq₂)) refl ([ c₁ , x₁ ]⊗☐• ☐) ++↦
             ↦⃖₈ ∷ Rev* (appendκ↦* (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (x ⃗)) eq₁)) refl (☐⊗[ c₂ , y₁ ]• ☐)) ++↦ ↦⃖₆ ∷ ◾
-
-      lem : eval (c₁ ⊗ c₂) ((x , y) ⃗) ≡ (x , y₁) ⃖
-      lem with deterministic* rs rs' (λ ()) (λ ())
-      ... | refl = subst (λ z → [ _⃖ ∘ proj₁ , _⃗ ∘ proj₁ ]′ z ≡ (x , y₁) ⃖) eq refl
-    eval≡interp (c₁ ⊗ c₂) ((x , y) ⃗) | inj₁ (((x' , y') , rs) , eq) | x₁ ⃖ | [ eq₁ ] = lem
+    eval≡interp (c₁ ⊗ c₂) ((x , y) ⃗) | x₁ ⃖ | [ eq₁ ] = eval-toState₁ rs'
       where
       rs' : ⟨ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ⟩▷ ↦* ⟨ c₁ ⊗ c₂ ∣ (x₁ , y) ∣ ☐ ⟩◁
       rs' = ↦⃗₆ ∷ appendκ↦* (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (x ⃗)) eq₁)) refl (☐⊗[ c₂ , y ]• ☐) ++↦ ↦⃖₆ ∷ ◾
-
-      lem : eval (c₁ ⊗ c₂) ((x , y) ⃗) ≡ (x₁ , y) ⃖
-      lem with deterministic* rs rs' (λ ()) (λ ())
-      ... | refl = subst (λ x → [ _⃖ ∘ proj₁ , _⃗ ∘ proj₁ ]′ x ≡ (x₁ , y) ⃖) eq refl
-    eval≡interp (c₁ ⊗ c₂) ((x , y) ⃗) | inj₂ (((x' , y') , rs) , eq) | x₁ ⃗ | [ eq₁ ] with interp c₂ (y ⃗) | inspect (interp c₂) (y ⃗)
-    eval≡interp (c₁ ⊗ c₂) ((x , y) ⃗) | inj₂ (((x' , y') , rs) , eq) | x₁ ⃗ | [ eq₁ ] | y₁ ⃗ | [ eq₂ ] = lem
-      where
-      rs' : ⟨ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ⟩▷ ↦* ［ c₁ ⊗ c₂ ∣ (x₁ , y₁) ∣ ☐ ］▷
-      rs' = ↦⃗₆ ∷ appendκ↦* (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (x ⃗)) eq₁)) refl (☐⊗[ c₂ , y ]• ☐) ++↦
-            ↦⃗₈ ∷ appendκ↦* (getₜᵣ⃗ c₂ (trans (eval≡interp c₂ (y ⃗)) eq₂)) refl ([ c₁ , x₁ ]⊗☐• ☐) ++↦ ↦⃗₉ ∷ ◾
-
-      lem : eval (c₁ ⊗ c₂) ((x , y) ⃗) ≡ (x₁ , y₁) ⃗
-      lem with deterministic* rs rs' (λ ()) (λ ())
-      ... | refl = subst (λ z → [ _⃖ ∘ proj₁ , _⃗ ∘ proj₁ ]′ z ≡ (x₁ , y₁) ⃗) eq refl
-    eval≡interp (c₁ ⊗ c₂) ((x , y) ⃗) | inj₂ (((x' , y') , rs) , eq) | x₁ ⃗ | [ eq₁ ] | y₁ ⃖ | [ eq₂ ] = lem
-      where
-      rs' : ⟨ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ⟩▷ ↦* ⟨ c₁ ⊗ c₂ ∣ (x , y₁) ∣ ☐ ⟩◁
-      rs' = ↦⃗₆ ∷ appendκ↦* (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (x ⃗)) eq₁)) refl (☐⊗[ c₂ , y ]• ☐) ++↦
-            ↦⃗₈ ∷ appendκ↦* (getₜᵣ⃗ c₂ (trans (eval≡interp c₂ (y ⃗)) eq₂)) refl ([ c₁ , x₁ ]⊗☐• ☐) ++↦
-            ↦⃖₈ ∷ Rev* (appendκ↦* (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (x ⃗)) eq₁)) refl (☐⊗[ c₂ , y₁ ]• ☐)) ++↦ ↦⃖₆ ∷ ◾
-
-      lem : eval (c₁ ⊗ c₂) ((x , y) ⃗) ≡ (x , y₁) ⃖
-      lem with deterministic* rs rs' (λ ()) (λ ())
-      ... | ()
-    eval≡interp (c₁ ⊗ c₂) ((x , y) ⃗) | inj₂ (((x' , y') , rs) , eq) | x₁ ⃖ | [ eq₁ ] = lem
-      where
-      rs' : ⟨ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ⟩▷ ↦* ⟨ c₁ ⊗ c₂ ∣ (x₁ , y) ∣ ☐ ⟩◁
-      rs' = ↦⃗₆ ∷ appendκ↦* (getₜᵣ⃗ c₁ (trans (eval≡interp c₁ (x ⃗)) eq₁)) refl (☐⊗[ c₂ , y ]• ☐) ++↦ ↦⃖₆ ∷ ◾
-
-      lem : eval (c₁ ⊗ c₂) ((x , y) ⃗) ≡ (x₁ , y) ⃖
-      lem with deterministic* rs rs' (λ ()) (λ ())
-      ... | ()
-    eval≡interp (c₁ ⊗ c₂) ((x , y) ⃖) with inspect⊎ (run ［ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ］◁) (λ ()) | interp c₂ (y ⃖) | inspect (interp c₂) (y ⃖)
-    eval≡interp (c₁ ⊗ c₂) ((x , y) ⃖) | inj₁ (((x' , y') , rs) , eq) | y₁ ⃗ | [ eq₂ ] = lem
+    eval≡interp (c₁ ⊗ c₂) ((x , y) ⃖) with interp c₂ (y ⃖) | inspect (interp c₂) (y ⃖)
+    eval≡interp (c₁ ⊗ c₂) ((x , y) ⃖) | y₁ ⃗ | [ eq₂ ] = eval-toState₂ rs'
       where
       rs' : ［ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ］◁ ↦* ［ c₁ ⊗ c₂ ∣ (x , y₁) ∣ ☐ ］▷
       rs' = ↦⃖₉ ∷ appendκ↦* (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (y ⃖)) eq₂)) refl ([ c₁ , x ]⊗☐• ☐) ++↦ ↦⃗₉ ∷ ◾
-
-      lem : eval (c₁ ⊗ c₂) ((x , y) ⃖) ≡ (x , y₁) ⃗
-      lem with deterministic* rs rs' (λ ()) (λ ())
-      ... | ()
-    eval≡interp (c₁ ⊗ c₂) ((x , y) ⃖) | inj₁ (((x' , y') , rs) , eq) | y₁ ⃖ | [ eq₂ ] with interp c₁ (x ⃖) | inspect (interp c₁) (x ⃖)
-    eval≡interp (c₁ ⊗ c₂) ((x , y) ⃖) | inj₁ (((x' , y') , rs) , eq) | y₁ ⃖ | [ eq₂ ] | x₁ ⃗ | [ eq₁ ] = lem
+    eval≡interp (c₁ ⊗ c₂) ((x , y) ⃖) | y₁ ⃖ | [ eq₂ ] with interp c₁ (x ⃖) | inspect (interp c₁) (x ⃖)
+    eval≡interp (c₁ ⊗ c₂) ((x , y) ⃖) | y₁ ⃖ | [ eq₂ ] | x₁ ⃗ | [ eq₁ ] = eval-toState₂ rs'
       where
       rs' : ［ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ］◁ ↦* ［ c₁ ⊗ c₂ ∣ (x₁ , y) ∣ ☐ ］▷
       rs' = ↦⃖₉ ∷ appendκ↦* (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (y ⃖)) eq₂)) refl ([ c₁ , x ]⊗☐• ☐) ++↦
             ↦⃖₈ ∷ appendκ↦* (getₜᵣ⃖ c₁ (trans (eval≡interp c₁ (x ⃖)) eq₁)) refl (☐⊗[ c₂ , y₁ ]• ☐) ++↦
             ↦⃗₈ ∷ Rev* (appendκ↦* (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (y ⃖)) eq₂)) refl ([ c₁ , x₁ ]⊗☐• ☐)) ++↦ ↦⃗₉ ∷ ◾
-
-      lem : eval (c₁ ⊗ c₂) ((x , y) ⃖) ≡ (x₁ , y) ⃗
-      lem with deterministic* rs rs' (λ ()) (λ ())
-      ... | ()
-    eval≡interp (c₁ ⊗ c₂) ((x , y) ⃖) | inj₁ (((x' , y') , rs) , eq) | y₁ ⃖ | [ eq₂ ] | x₁ ⃖ | [ eq₁ ] = lem
+    eval≡interp (c₁ ⊗ c₂) ((x , y) ⃖) | y₁ ⃖ | [ eq₂ ] | x₁ ⃖ | [ eq₁ ] = eval-toState₂ rs'
       where
       rs' : ［ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ］◁ ↦* ⟨ c₁ ⊗ c₂ ∣ (x₁ , y₁) ∣ ☐ ⟩◁
       rs' = ↦⃖₉ ∷ appendκ↦* (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (y ⃖)) eq₂)) refl ([ c₁ , x ]⊗☐• ☐) ++↦
             ↦⃖₈ ∷ appendκ↦* (getₜᵣ⃖ c₁ (trans (eval≡interp c₁ (x ⃖)) eq₁)) refl (☐⊗[ c₂ , y₁ ]• ☐) ++↦ ↦⃖₆ ∷ ◾
-
-      lem : eval (c₁ ⊗ c₂) ((x , y) ⃖) ≡ (x₁ , y₁) ⃖
-      lem with deterministic* rs rs' (λ ()) (λ ())
-      ... | refl = subst (λ z → [ _⃖ ∘ proj₁ , _⃗ ∘ proj₁ ]′ z ≡ (x₁ , y₁) ⃖) eq refl
-    eval≡interp (c₁ ⊗ c₂) ((x , y) ⃖) | inj₂ (((x' , y') , rs) , eq) | y₁ ⃗ | [ eq₂ ] = lem
-      where
-      rs' : ［ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ］◁ ↦* ［ c₁ ⊗ c₂ ∣ (x , y₁) ∣ ☐ ］▷
-      rs' = ↦⃖₉ ∷ appendκ↦* (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (y ⃖)) eq₂)) refl ([ c₁ , x ]⊗☐• ☐) ++↦ ↦⃗₉ ∷ ◾
-
-      lem : eval (c₁ ⊗ c₂) ((x , y) ⃖) ≡ (x , y₁) ⃗
-      lem with deterministic* rs rs' (λ ()) (λ ())
-      ... | refl = subst (λ z → [ _⃖ ∘ proj₁ , _⃗ ∘ proj₁ ]′ z ≡ (x , y₁) ⃗) eq refl
-    eval≡interp (c₁ ⊗ c₂) ((x , y) ⃖) | inj₂ (((x' , y') , rs) , eq) | y₁ ⃖ | [ eq₂ ] with interp c₁ (x ⃖) | inspect (interp c₁) (x ⃖)
-    eval≡interp (c₁ ⊗ c₂) ((x , y) ⃖) | inj₂ (((x' , y') , rs) , eq) | y₁ ⃖ | [ eq₂ ] | x₁ ⃗ | [ eq₁ ] = lem
-      where
-      rs' : ［ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ］◁ ↦* ［ c₁ ⊗ c₂ ∣ (x₁ , y) ∣ ☐ ］▷
-      rs' = ↦⃖₉ ∷ appendκ↦* (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (y ⃖)) eq₂)) refl ([ c₁ , x ]⊗☐• ☐) ++↦
-            ↦⃖₈ ∷ appendκ↦* (getₜᵣ⃖ c₁ (trans (eval≡interp c₁ (x ⃖)) eq₁)) refl (☐⊗[ c₂ , y₁ ]• ☐) ++↦
-            ↦⃗₈ ∷ Rev* (appendκ↦* (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (y ⃖)) eq₂)) refl ([ c₁ , x₁ ]⊗☐• ☐)) ++↦ ↦⃗₉ ∷ ◾
-
-      lem : eval (c₁ ⊗ c₂) ((x , y) ⃖) ≡ (x₁ , y) ⃗
-      lem with deterministic* rs rs' (λ ()) (λ ())
-      ... | refl = subst (λ z → [ _⃖ ∘ proj₁ , _⃗ ∘ proj₁ ]′ z ≡ (x₁ , y) ⃗) eq refl
-    eval≡interp (c₁ ⊗ c₂) ((x , y) ⃖) | inj₂ (((x' , y') , rs) , eq) | y₁ ⃖ | [ eq₂ ] | x₁ ⃖ | [ eq₁ ] = lem
-      where
-      rs' : ［ c₁ ⊗ c₂ ∣ (x , y) ∣ ☐ ］◁ ↦* ⟨ c₁ ⊗ c₂ ∣ (x₁ , y₁) ∣ ☐ ⟩◁
-      rs' = ↦⃖₉ ∷ appendκ↦* (getₜᵣ⃖ c₂ (trans (eval≡interp c₂ (y ⃖)) eq₂)) refl ([ c₁ , x ]⊗☐• ☐) ++↦
-            ↦⃖₈ ∷ appendκ↦* (getₜᵣ⃖ c₁ (trans (eval≡interp c₁ (x ⃖)) eq₁)) refl (☐⊗[ c₂ , y₁ ]• ☐) ++↦ ↦⃖₆ ∷ ◾
-
-      lem : eval (c₁ ⊗ c₂) ((x , y) ⃖) ≡ (x₁ , y₁) ⃖
-      lem with deterministic* rs rs' (λ ()) (λ ())
-      ... | ()
     eval≡interp η₊ (inj₁ x ⃖) = refl
     eval≡interp η₊ (inj₂ (- x) ⃖) = refl
     eval≡interp ε₊ (inj₁ x ⃗) = refl
     eval≡interp ε₊ (inj₂ (- x) ⃗) = refl
 
-    -- Termination is guarantee by Pi-.NoRepeat:
-    -- The execution trace in the argument will grow in every mutual recursive call, but it can only has finite length.
     private
-      {-# TERMINATING #-}
-      loop₁⃗ : ∀ {A B C a₀} → (c₁ : A ↔ B) → (b : ⟦ B ⟧) → (c₂ : B ↔ C)
-             → ⟨ c₁ ⨾ c₂ ∣ a₀ ∣ ☐ ⟩▷ ↦* ［ c₁ ∣ b ∣ ☐⨾ c₂ • ☐ ］▷
-             → ⟨ c₁ ⨾ c₂ ∣ a₀ ∣ ☐ ⟩▷ ↦* (toState (c₁ ⨾ c₂) (c₁ ⨾[ b ⃗]⨾ c₂))
-      loop₁⃗ c₁ b c₂ rsₐ with interp c₂ (b ⃗) | inspect (interp c₂) (b ⃗)
-      loop₁⃗ c₁ b c₂ rsₐ | c ⃗  | [ eq ] = rsₐ ++↦ (↦⃗₇ ∷ ◾) ++↦ appendκ↦* (getₜᵣ⃗ c₂ (trans (eval≡interp c₂ (b ⃗)) eq)) refl (c₁ ⨾☐• ☐) ++↦ (↦⃗₁₀ ∷ ◾)
-      loop₁⃗ c₁ b c₂ rsₐ | b' ⃖ | [ eq ] = loop₂⃗ c₁ b' c₂ (rsₐ ++↦ (↦⃗₇ ∷ ◾) ++↦ appendκ↦* (getₜᵣ⃗ c₂ (trans (eval≡interp c₂ (b ⃗)) eq)) refl (c₁ ⨾☐• ☐) ++↦ (↦⃖₇ ∷ ◾))
+      loop : ∀ {A B C x} {c₁ : A ↔ B} {c₂ : B ↔ C} (n : ℕ)
+           → ∀ b → ((rs : ［ c₁ ∣ b ∣ ☐⨾ c₂ • ☐ ］▷ ↦* toState (c₁ ⨾ c₂) x) → len↦ rs ≡ n → x ≡ c₁ ⨾[ b ⃗]⨾ c₂)
+                 × ((rs : ⟨ c₂ ∣ b ∣ c₁ ⨾☐• ☐ ⟩◁ ↦* toState (c₁ ⨾ c₂) x) → len↦ rs ≡ n → x ≡ c₁ ⨾[ b ⃖]⨾ c₂)
+      loop {A} {B} {C} {x} {c₁} {c₂} = <′-rec (λ n → _) loop-rec
+        where
+        loop-rec : (n : ℕ) → (∀ m → m <′ n → _) → _
+        loop-rec n R b = loop₁ , loop₂
+          where
+          loop₁ : (rs  : ［ c₁ ∣ b ∣ ☐⨾ c₂ • ☐ ］▷ ↦* toState (c₁ ⨾ c₂) x) → len↦ rs ≡ n → x ≡ c₁ ⨾[ b ⃗]⨾ c₂
+          loop₁ rs refl with interp c₂ (b ⃗) | inspect (interp c₂) (b ⃗)
+          loop₁ rs refl | c ⃗   | [ eq ] = toState≡₁ (deterministic* rs rsb→c (is-stuck-toState _ _) (λ ()))
+            where
+            rsb→c : ［ c₁ ∣ b ∣ ☐⨾ c₂ • ☐ ］▷ ↦* ［ c₁ ⨾ c₂ ∣ c ∣ ☐ ］▷
+            rsb→c = ↦⃗₇ ∷ appendκ↦* (getₜᵣ⃗ c₂ (trans (eval≡interp c₂ (b ⃗)) eq)) refl (c₁ ⨾☐• ☐) ++↦ (↦⃗₁₀ ∷ ◾)
+          loop₁ rs refl | b' ⃖  | [ eq ] = proj₂ (R (len↦ rsb') le b') rsb' refl
+            where
+            rsb→b' : ［ c₁ ∣ b ∣ ☐⨾ c₂ • ☐ ］▷ ↦* ⟨ c₂ ∣ b' ∣ c₁ ⨾☐• ☐ ⟩◁
+            rsb→b' = ↦⃗₇ ∷ appendκ↦* (getₜᵣ⃗ c₂ (trans (eval≡interp c₂ (b ⃗)) eq)) refl (c₁ ⨾☐• ☐)
 
-      loop₂⃗ : ∀ {A B C a₀} → (c₁ : A ↔ B) → (b : ⟦ B ⟧) → (c₂ : B ↔ C)
-            → ⟨ c₁ ⨾ c₂ ∣ a₀ ∣ ☐ ⟩▷ ↦* ［ c₁ ∣ b ∣ ☐⨾ c₂ • ☐ ］◁
-            → ⟨ c₁ ⨾ c₂ ∣ a₀ ∣ ☐ ⟩▷ ↦* (toState (c₁ ⨾ c₂) (c₁ ⨾[ b ⃖]⨾ c₂))
-      loop₂⃗ c₁ b c₂ rsₐ with interp c₁ (b ⃖) | inspect (interp c₁) (b ⃖)
-      loop₂⃗ c₁ b c₂ rsₐ | b' ⃗ | [ eq ] = loop₁⃗ c₁ b' c₂ (rsₐ ++↦ appendκ↦* (getₜᵣ⃖ c₁ (trans (eval≡interp c₁ (b ⃖)) eq)) refl (☐⨾ c₂ • ☐))
-      loop₂⃗ c₁ b c₂ rsₐ | a' ⃖ | [ eq ] = rsₐ ++↦ appendκ↦* (getₜᵣ⃖ c₁ (trans (eval≡interp c₁ (b ⃖)) eq)) refl (☐⨾ c₂ • ☐) ++↦ (↦⃖₃ ∷ ◾)
+            rsb' : ⟨ c₂ ∣ b' ∣ c₁ ⨾☐• ☐ ⟩◁ ↦* toState (c₁ ⨾ c₂) x
+            rsb' = proj₁ (deterministic*' rsb→b' rs (is-stuck-toState _ _))
 
-      loop₁⃖ : ∀ {A B C c₀} → (c₁ : A ↔ B) → (b : ⟦ B ⟧) → (c₂ : B ↔ C)
-             → ［ c₁ ⨾ c₂ ∣ c₀ ∣ ☐ ］◁ ↦* ［ c₁ ∣ b ∣ ☐⨾ c₂ • ☐ ］▷
-             → ［ c₁ ⨾ c₂ ∣ c₀ ∣ ☐ ］◁ ↦* (toState (c₁ ⨾ c₂) (c₁ ⨾[ b ⃗]⨾ c₂))
-      loop₁⃖ c₁ b c₂ rsₐ with interp c₂ (b ⃗) | inspect (interp c₂) (b ⃗)
-      loop₁⃖ c₁ b c₂ rsₐ | c ⃗  | [ eq ] = rsₐ ++↦ (↦⃗₇ ∷ ◾) ++↦ appendκ↦* (getₜᵣ⃗ c₂ (trans (eval≡interp c₂ (b ⃗)) eq)) refl (c₁ ⨾☐• ☐) ++↦ (↦⃗₁₀ ∷ ◾)
-      loop₁⃖ c₁ b c₂ rsₐ | b' ⃖ | [ eq ] = loop₂⃖ c₁ b' c₂ (rsₐ ++↦ (↦⃗₇ ∷ ◾) ++↦ appendκ↦* (getₜᵣ⃗ c₂ (trans (eval≡interp c₂ (b ⃗)) eq)) refl (c₁ ⨾☐• ☐) ++↦ (↦⃖₇ ∷ ◾))
+            req : len↦ rs ≡ len↦ rsb→b' + len↦ rsb'
+            req = proj₂ (deterministic*' rsb→b' rs (is-stuck-toState _ _))
 
-      loop₂⃖ : ∀ {A B C c₀} → (c₁ : A ↔ B) → (b : ⟦ B ⟧) → (c₂ : B ↔ C)
-            → ［ c₁ ⨾ c₂ ∣ c₀ ∣ ☐ ］◁ ↦* ［ c₁ ∣ b ∣ ☐⨾ c₂ • ☐ ］◁
-            → ［ c₁ ⨾ c₂ ∣ c₀ ∣ ☐ ］◁ ↦* (toState (c₁ ⨾ c₂) (c₁ ⨾[ b ⃖]⨾ c₂))
-      loop₂⃖ c₁ b c₂ rsₐ with interp c₁ (b ⃖) | inspect (interp c₁) (b ⃖)
-      loop₂⃖ c₁ b c₂ rsₐ | b' ⃗  | [ eq ] = loop₁⃖ c₁ b' c₂ (rsₐ ++↦ appendκ↦* (getₜᵣ⃖ c₁ (trans (eval≡interp c₁ (b ⃖)) eq)) refl (☐⨾ c₂ • ☐))
-      loop₂⃖ c₁ b c₂ rsₐ | a' ⃖  | [ eq ] = rsₐ ++↦ appendκ↦* (getₜᵣ⃖ c₁ (trans (eval≡interp c₁ (b ⃖)) eq)) refl (☐⨾ c₂ • ☐) ++↦ (↦⃖₃ ∷ ◾)
+            le : len↦ rsb' <′ len↦ rs
+            le rewrite req = s≤′s (n≤′m+n _ _)
+
+          loop₂ : (rs : ⟨ c₂ ∣ b ∣ c₁ ⨾☐• ☐ ⟩◁ ↦* toState (c₁ ⨾ c₂) x) → len↦ rs ≡ n → x ≡ c₁ ⨾[ b ⃖]⨾ c₂
+          loop₂ rs refl with interp c₁ (b ⃖) | inspect (interp c₁) (b ⃖)
+          loop₂ rs refl | a' ⃖ | [ eq ] = toState≡₂ (deterministic* rs rsb→a (is-stuck-toState _ _) (λ ()))
+            where
+            rsb→a : ⟨ c₂ ∣ b ∣ c₁ ⨾☐• ☐ ⟩◁ ↦* ⟨ c₁ ⨾ c₂ ∣ a' ∣ ☐ ⟩◁
+            rsb→a = ↦⃖₇ ∷ appendκ↦* (getₜᵣ⃖ c₁ (trans (eval≡interp c₁ (b ⃖)) eq)) refl (☐⨾ c₂ • ☐) ++↦ (↦⃖₃ ∷ ◾)
+          loop₂ rs refl | b' ⃗ | [ eq ] = proj₁ (R (len↦ rsb') le b') rsb' refl
+            where
+            rsb→b' : ⟨ c₂ ∣ b ∣ c₁ ⨾☐• ☐ ⟩◁ ↦* ［ c₁ ∣ b' ∣ ☐⨾ c₂ • ☐ ］▷
+            rsb→b' = ↦⃖₇ ∷ appendκ↦* (getₜᵣ⃖ c₁ (trans (eval≡interp c₁ (b ⃖)) eq)) refl (☐⨾ c₂ • ☐)
+
+            rsb' : ［ c₁ ∣ b' ∣ ☐⨾ c₂ • ☐ ］▷ ↦* toState (c₁ ⨾ c₂) x
+            rsb' = proj₁ (deterministic*' rsb→b' rs (is-stuck-toState _ _))
+
+            req : len↦ rs ≡ len↦ rsb→b' + len↦ rsb'
+            req = proj₂ (deterministic*' rsb→b' rs (is-stuck-toState _ _))
+
+            le : len↦ rsb' <′ len↦ rs
+            le rewrite req = s≤′s (n≤′m+n _ _)
 
 open eval≡interp public
 
 module ∘-resp-≈ {A B C : 𝕌} {g i : B ↔ C} {f h : A ↔ B} (g~i : eval g ∼ eval i) (f~h : eval f ∼ eval h) where
-  mutual
-    ∘-resp-≈ : eval (f ⨾ g) ∼ eval (h ⨾ i)
-    ∘-resp-≈ (a ⃗) with inspect⊎ (run ⟨ f ∣ a ∣ ☐ ⟩▷) (λ ())
-    ∘-resp-≈ (a ⃗) | inj₁ ((a₁ , rs₁) , eq₁) = lem
+  private
+    loop : ∀ {x} (n : ℕ) → ∀ b
+         → ((rs : ［ f ∣ b ∣ ☐⨾ g • ☐ ］▷ ↦* toState (f ⨾ g) x) → len↦ rs ≡ n → ［ h ∣ b ∣ ☐⨾ i • ☐ ］▷ ↦* toState (h ⨾ i) x)
+         × ((rs : ⟨ g ∣ b ∣ f ⨾☐• ☐ ⟩◁ ↦* toState (f ⨾ g) x) → len↦ rs ≡ n → ⟨ i ∣ b ∣ h ⨾☐• ☐ ⟩◁ ↦* toState (h ⨾ i) x)
+    loop {x} = <′-rec (λ n → _) loop-rec
       where
-      eq : eval h (a ⃗) ≡ (a₁ ⃖)
-      eq = trans (sym (f~h (a ⃗))) (subst (λ z → [ (λ x → proj₁ x ⃖) , (λ x → proj₁ x ⃗) ]′ z ≡ (a₁ ⃖)) eq₁ refl)
-
-      rs₁' : ⟨ f ⨾ g ∣ a ∣ ☐ ⟩▷ ↦* ⟨ f ⨾ g ∣ a₁ ∣ ☐ ⟩◁
-      rs₁' = ↦⃗₃ ∷ appendκ↦* rs₁ refl (☐⨾ g • ☐) ++↦ ↦⃖₃ ∷ ◾
-
-      rs₂' : ⟨ h ⨾ i ∣ a ∣ ☐ ⟩▷ ↦* ⟨ h ⨾ i ∣ a₁ ∣ ☐ ⟩◁
-      rs₂' = ↦⃗₃ ∷ appendκ↦* (getₜᵣ⃗ h eq) refl (☐⨾ i • ☐) ++↦ ↦⃖₃ ∷ ◾
-
-      lem : eval (f ⨾ g) (a ⃗) ≡ eval (h ⨾ i) (a ⃗)
-      lem rewrite eval-toState₁ rs₁' | eval-toState₁ rs₂' | eq = refl
-    ∘-resp-≈ (a ⃗) | inj₂ ((b₁ , rs₁) , eq₁) = lem
-      where
-      eq : eval h (a ⃗) ≡ (b₁ ⃗)
-      eq = trans (sym (f~h (a ⃗))) (subst (λ z → [ (λ x → proj₁ x ⃖) , (λ x → proj₁ x ⃗) ]′ z ≡ (b₁ ⃗)) eq₁ refl)
-
-      rs₁' : ⟨ f ⨾ g ∣ a ∣ ☐ ⟩▷ ↦* ［ f ∣ b₁ ∣ ☐⨾ g • ☐ ］▷
-      rs₁' = ↦⃗₃ ∷ appendκ↦* rs₁ refl (☐⨾ g • ☐)
-
-      rs₂' : ⟨ h ⨾ i ∣ a ∣ ☐ ⟩▷ ↦* ［ h ∣ b₁ ∣ ☐⨾ i • ☐ ］▷
-      rs₂' = ↦⃗₃ ∷ appendκ↦* (getₜᵣ⃗ h eq) refl (☐⨾ i • ☐)
-
-      lem : eval (f ⨾ g) (a ⃗) ≡ eval (h ⨾ i) (a ⃗)
-      lem with Loop₁⃗ (rs₁' , rs₂')
-      ... | (x , rs₁'' , rs₂'') rewrite eval-toState₁ rs₁'' | eval-toState₁ rs₂'' = refl
-    ∘-resp-≈ (c ⃖) with inspect⊎ (run ［ g ∣ c ∣ ☐ ］◁) (λ ())
-    ∘-resp-≈ (c ⃖) | inj₁ ((b₁ , rs₁) , eq₁) = lem
-      where
-      eq : eval i (c ⃖) ≡ (b₁ ⃖)
-      eq = trans (sym (g~i (c ⃖))) (subst (λ z → [ (λ x → proj₁ x ⃖) , (λ x → proj₁ x ⃗) ]′ z ≡ (b₁ ⃖)) eq₁ refl)
-
-      rs₁' : ［ f ⨾ g ∣ c ∣ ☐ ］◁ ↦* ［ f ∣ b₁ ∣ ☐⨾ g • ☐ ］◁
-      rs₁' = ↦⃖₁₀ ∷ appendκ↦* rs₁ refl (f ⨾☐• ☐) ++↦ ↦⃖₇ ∷ ◾
-
-      rs₂' : ［ h ⨾ i ∣ c ∣ ☐ ］◁ ↦* ［ h ∣ b₁ ∣ ☐⨾ i • ☐ ］◁
-      rs₂' = ↦⃖₁₀ ∷ appendκ↦* (getₜᵣ⃖ i eq) refl (h ⨾☐• ☐) ++↦ ↦⃖₇ ∷ ◾
-
-      lem : eval (f ⨾ g) (c ⃖) ≡ eval (h ⨾ i) (c ⃖)
-      lem with Loop₁⃖ (rs₁' , rs₂')
-      ... | (x , rs₁'' , rs₂'') rewrite eval-toState₂ rs₁'' | eval-toState₂ rs₂'' = refl
-    ∘-resp-≈ (c ⃖) | inj₂ ((c₁ , rs₁) , eq₁) = lem
-      where
-      eq : eval i (c ⃖) ≡ (c₁ ⃗)
-      eq = trans (sym (g~i (c ⃖))) (subst (λ z → [ (λ x → proj₁ x ⃖) , (λ x → proj₁ x ⃗) ]′ z ≡ (c₁ ⃗)) eq₁ refl)
-
-      rs₁' : ［ f ⨾ g ∣ c ∣ ☐ ］◁ ↦* ［ f ⨾ g ∣ c₁ ∣ ☐ ］▷
-      rs₁' = ↦⃖₁₀ ∷ appendκ↦* rs₁ refl (f ⨾☐• ☐) ++↦ ↦⃗₁₀ ∷ ◾
-
-      rs₂' : ［ h ⨾ i ∣ c ∣ ☐ ］◁ ↦* ［ h ⨾ i ∣ c₁ ∣ ☐ ］▷
-      rs₂' = ↦⃖₁₀ ∷ appendκ↦* (getₜᵣ⃖ i eq) refl (h ⨾☐• ☐) ++↦ ↦⃗₁₀ ∷ ◾
-
-      lem : eval (f ⨾ g) (c ⃖) ≡ eval (h ⨾ i) (c ⃖)
-      lem rewrite eval-toState₂ rs₁' | eval-toState₂ rs₂' | eq = refl
-
-    private
-      {-# TERMINATING #-}
-      Loop₁⃗ : {a₀ : ⟦ A ⟧} {b : ⟦ B ⟧}
-             → ⟨ f ⨾ g ∣ a₀ ∣ ☐ ⟩▷ ↦* ［ f ∣ b ∣ ☐⨾ g • ☐ ］▷
-             × ⟨ h ⨾ i ∣ a₀ ∣ ☐ ⟩▷ ↦* ［ h ∣ b ∣ ☐⨾ i • ☐ ］▷
-             → Σ[ x ∈ Val C A ]
-               ⟨ f ⨾ g ∣ a₀ ∣ ☐ ⟩▷ ↦* toState (f ⨾ g) x
-             × ⟨ h ⨾ i ∣ a₀ ∣ ☐ ⟩▷ ↦* toState (h ⨾ i) x
-      Loop₁⃗ {a₀} {b} (ts₁ , ts₂) with inspect⊎ (run ⟨ g ∣ b ∣ ☐ ⟩▷) (λ ())
-      Loop₁⃗ {a₀} {b} (ts₁ , ts₂) | inj₁ ((b₁ , rs₁) , eq₁) = Loop₂⃗ ( ts₁ ++↦ ↦⃗₇ ∷ appendκ↦* rs₁ refl (f ⨾☐• ☐) ++↦ ↦⃖₇ ∷ ◾
-                                                                     , ts₂ ++↦ ↦⃗₇ ∷ appendκ↦* rs₂ refl (h ⨾☐• ☐) ++↦ ↦⃖₇ ∷ ◾)
+      loop-rec : (n : ℕ) → (∀ m → m <′ n → _) → _
+      loop-rec n R b = loop₁ , loop₂
         where
-        eq : eval i (b ⃗) ≡ (b₁ ⃖)
-        eq = trans (sym (g~i (b ⃗))) (subst (λ z → [ (λ x → proj₁ x ⃖) , (λ x → proj₁ x ⃗) ]′ z ≡ (b₁ ⃖)) eq₁ refl)
+        loop₁ : (rs : ［ f ∣ b ∣ ☐⨾ g • ☐ ］▷ ↦* toState (f ⨾ g) x) → len↦ rs ≡ n → ［ h ∣ b ∣ ☐⨾ i • ☐ ］▷ ↦* toState (h ⨾ i) x
+        loop₁ rs refl with inspect⊎ (run ⟨ g ∣ b ∣ ☐ ⟩▷) (λ ())
+        loop₁ rs refl | inj₁ ((b₁ , rs₁) , eq₁) = ↦⃗₇ ∷ appendκ↦* rs₂ refl (h ⨾☐• ☐) ++↦ proj₂ (R (len↦ rs₁'') le b₁) rs₁'' refl
+          where
+          rs₁' : ［ f ∣ b ∣ ☐⨾ g • ☐ ］▷ ↦* ⟨ g ∣ b₁ ∣ f ⨾☐• ☐ ⟩◁
+          rs₁' = ↦⃗₇ ∷ appendκ↦* rs₁ refl (f ⨾☐• ☐)
 
-        rs₂ : ⟨ i ∣ b ∣ ☐ ⟩▷ ↦* ⟨ i ∣ b₁ ∣ ☐ ⟩◁
-        rs₂ = getₜᵣ⃗ i eq
-      Loop₁⃗ {a₀} {b} (ts₁ , ts₂) | inj₂ ((c₁ , rs₁) , eq₁) = c₁ ⃗ , ts₁ ++↦ ↦⃗₇ ∷ appendκ↦* rs₁ refl (f ⨾☐• ☐) ++↦ ↦⃗₁₀ ∷ ◾
-                                                                   , ts₂ ++↦ ↦⃗₇ ∷ appendκ↦* rs₂ refl (h ⨾☐• ☐) ++↦ ↦⃗₁₀ ∷ ◾
-        where
-        eq : eval i (b ⃗) ≡ (c₁ ⃗)
-        eq = trans (sym (g~i (b ⃗))) (subst (λ z → [ (λ x → proj₁ x ⃖) , (λ x → proj₁ x ⃗) ]′ z ≡ (c₁ ⃗)) eq₁ refl)
+          rs₂ : ⟨ i ∣ b ∣ ☐ ⟩▷ ↦* ⟨ i ∣ b₁ ∣ ☐ ⟩◁
+          rs₂ = getₜᵣ⃗ i (trans (sym (g~i (b ⃗))) (eval-toState₁ rs₁))
 
-        rs₂ : ⟨ i ∣ b ∣ ☐ ⟩▷ ↦* ［ i ∣ c₁ ∣ ☐ ］▷
-        rs₂ = getₜᵣ⃗ i eq
+          rs₁'' : ⟨ g ∣ b₁ ∣ f ⨾☐• ☐ ⟩◁ ↦* toState (f ⨾ g) x
+          rs₁'' = proj₁ (deterministic*' rs₁' rs (is-stuck-toState _ _))
 
-      Loop₂⃗ : {a₀ : ⟦ A ⟧} {b : ⟦ B ⟧}
-             → ⟨ f ⨾ g ∣ a₀ ∣ ☐ ⟩▷ ↦* ［ f ∣ b ∣ ☐⨾ g • ☐ ］◁
-             × ⟨ h ⨾ i ∣ a₀ ∣ ☐ ⟩▷ ↦* ［ h ∣ b ∣ ☐⨾ i • ☐ ］◁
-             → Σ[ x ∈ Val C A ]
-               ⟨ f ⨾ g ∣ a₀ ∣ ☐ ⟩▷ ↦* toState (f ⨾ g) x
-             × ⟨ h ⨾ i ∣ a₀ ∣ ☐ ⟩▷ ↦* toState (h ⨾ i) x
-      Loop₂⃗ {a₀} {b} (ts₁ , ts₂) with inspect⊎ (run ［ f ∣ b ∣ ☐ ］◁) (λ ())
-      Loop₂⃗ {a₀} {b} (ts₁ , ts₂) | inj₁ ((a₁ , rs₁) , eq₁) = a₁ ⃖ , ts₁ ++↦ appendκ↦* rs₁ refl (☐⨾ g • ☐) ++↦ ↦⃖₃ ∷ ◾
-                                                                   , ts₂ ++↦ appendκ↦* rs₂ refl (☐⨾ i • ☐) ++↦ ↦⃖₃ ∷ ◾
-        where
-        eq : eval h (b ⃖) ≡ (a₁ ⃖)
-        eq = trans (sym (f~h (b ⃖))) (subst (λ z → [ (λ x → proj₁ x ⃖) , (λ x → proj₁ x ⃗) ]′ z ≡ (a₁ ⃖)) eq₁ refl)
+          req : len↦ rs ≡ len↦ rs₁' + len↦ rs₁''
+          req = proj₂ (deterministic*' rs₁' rs (is-stuck-toState _ _))
 
-        rs₂ : ［ h ∣ b ∣ ☐ ］◁ ↦* ⟨ h ∣ a₁ ∣ ☐ ⟩◁
-        rs₂ = getₜᵣ⃖ h eq
-      Loop₂⃗ {a₀} {b} (ts₁ , ts₂) | inj₂ ((b₁ , rs₁) , eq₁) = Loop₁⃗ ( ts₁ ++↦ appendκ↦* rs₁ refl (☐⨾ g • ☐)
-                                                                     , ts₂ ++↦ appendκ↦* rs₂ refl (☐⨾ i • ☐))
-        where
-        eq : eval h (b ⃖) ≡ (b₁ ⃗)
-        eq = trans (sym (f~h (b ⃖))) (subst (λ z → [ (λ x → proj₁ x ⃖) , (λ x → proj₁ x ⃗) ]′ z ≡ (b₁ ⃗)) eq₁ refl)
+          le : len↦ rs₁'' <′ len↦ rs
+          le = subst (λ x → len↦ rs₁'' <′ x) (sym req) (s≤′s (n≤′m+n _ _))
+        loop₁ rs refl | inj₂ ((c₁ , rs₁) , eq₁) = rs₂'
+          where
+          rs₁' : ［ f ∣ b ∣ ☐⨾ g • ☐ ］▷ ↦* ［ f ⨾ g ∣ c₁ ∣ ☐ ］▷
+          rs₁' = ↦⃗₇ ∷ appendκ↦* rs₁ refl (f ⨾☐• ☐) ++↦ ↦⃗₁₀ ∷ ◾
 
-        rs₂ : ［ h ∣ b ∣ ☐ ］◁ ↦* ［ h ∣ b₁ ∣ ☐ ］▷
-        rs₂ = getₜᵣ⃖ h eq
+          rs₂ : ⟨ i ∣ b ∣ ☐ ⟩▷ ↦* ［ i ∣ c₁ ∣ ☐ ］▷
+          rs₂ = getₜᵣ⃗ i (trans (sym (g~i (b ⃗))) (eval-toState₁ rs₁))
 
-      Loop₁⃖ : {c₀ : ⟦ C ⟧} {b : ⟦ B ⟧}
-             → ［ f ⨾ g ∣ c₀ ∣ ☐ ］◁ ↦* ［ f ∣ b ∣ ☐⨾ g • ☐ ］◁
-             × ［ h ⨾ i ∣ c₀ ∣ ☐ ］◁ ↦* ［ h ∣ b ∣ ☐⨾ i • ☐ ］◁
-             → Σ[ x ∈ Val C A ]
-               ［ f ⨾ g ∣ c₀ ∣ ☐ ］◁ ↦* toState (f ⨾ g) x
-             × ［ h ⨾ i ∣ c₀ ∣ ☐ ］◁ ↦* toState (h ⨾ i) x
-      Loop₁⃖ {c₀} {b} (ts₁ , ts₂) with inspect⊎ (run ［ f ∣ b ∣ ☐ ］◁) (λ ())
-      Loop₁⃖ {c₀} {b} (ts₁ , ts₂) | inj₁ ((a₁ , rs₁) , eq₁) = a₁ ⃖ , ts₁ ++↦ appendκ↦* rs₁ refl (☐⨾ g • ☐) ++↦ ↦⃖₃ ∷ ◾
-                                                                   , ts₂ ++↦ appendκ↦* rs₂ refl (☐⨾ i • ☐) ++↦ ↦⃖₃ ∷ ◾
-        where
-        eq : eval h (b ⃖) ≡ (a₁ ⃖)
-        eq = trans (sym (f~h (b ⃖))) (subst (λ z → [ (λ x → proj₁ x ⃖) , (λ x → proj₁ x ⃗) ]′ z ≡ (a₁ ⃖)) eq₁ refl)
-        
-        rs₂ : ［ h ∣ b ∣ ☐ ］◁ ↦* ⟨ h ∣ a₁ ∣ ☐ ⟩◁
-        rs₂ = getₜᵣ⃖ h eq
-      Loop₁⃖ {c₀} {b} (ts₁ , ts₂) | inj₂ ((b₁ , rs₁) , eq₁) = Loop₂⃖ ( ts₁ ++↦ appendκ↦* rs₁ refl (☐⨾ g • ☐)
-                                                                     , ts₂ ++↦ appendκ↦* rs₂ refl (☐⨾ i • ☐))
-        where
-        eq : eval h (b ⃖) ≡ (b₁ ⃗)
-        eq = trans (sym (f~h (b ⃖))) (subst (λ z → [ (λ x → proj₁ x ⃖) , (λ x → proj₁ x ⃗) ]′ z ≡ (b₁ ⃗)) eq₁ refl)
-        
-        rs₂ : ［ h ∣ b ∣ ☐ ］◁ ↦* ［ h ∣ b₁ ∣ ☐ ］▷
-        rs₂ = getₜᵣ⃖ h eq
+          xeq : x ≡ c₁ ⃗
+          xeq = toState≡₁ (sym (deterministic* rs₁' rs (λ ()) (is-stuck-toState _ _)))
 
-      Loop₂⃖ : {c₀ : ⟦ C ⟧} {b : ⟦ B ⟧}
-             → ［ f ⨾ g ∣ c₀ ∣ ☐ ］◁ ↦* ［ f ∣ b ∣ ☐⨾ g • ☐ ］▷
-             × ［ h ⨾ i ∣ c₀ ∣ ☐ ］◁ ↦* ［ h ∣ b ∣ ☐⨾ i • ☐ ］▷
-             → Σ[ x ∈ Val C A ]
-               ［ f ⨾ g ∣ c₀ ∣ ☐ ］◁ ↦* toState (f ⨾ g) x
-             × ［ h ⨾ i ∣ c₀ ∣ ☐ ］◁ ↦* toState (h ⨾ i) x
-      Loop₂⃖ {c₀} {b} (ts₁ , ts₂) with inspect⊎ (run ⟨ g ∣ b ∣ ☐ ⟩▷) (λ ())
-      Loop₂⃖ {c₀} {b} (ts₁ , ts₂) | inj₁ ((b₁ , rs₁) , eq₁) = Loop₁⃖ ( ts₁ ++↦ ↦⃗₇ ∷ appendκ↦* rs₁ refl (f ⨾☐• ☐) ++↦ ↦⃖₇ ∷ ◾
-                                                                     , ts₂ ++↦ ↦⃗₇ ∷ appendκ↦* rs₂ refl (h ⨾☐• ☐) ++↦ ↦⃖₇ ∷ ◾)
-        where
-        eq : eval i (b ⃗) ≡ (b₁ ⃖)
-        eq = trans (sym (g~i (b ⃗))) (subst (λ z → [ (λ x → proj₁ x ⃖) , (λ x → proj₁ x ⃗) ]′ z ≡ (b₁ ⃖)) eq₁ refl)
+          rs₂' : ［ h ∣ b ∣ ☐⨾ i • ☐ ］▷ ↦* toState (h ⨾ i) x
+          rs₂' rewrite xeq = ↦⃗₇ ∷ appendκ↦* rs₂ refl (h ⨾☐• ☐) ++↦ ↦⃗₁₀ ∷ ◾
+        loop₂ : (rs : ⟨ g ∣ b ∣ f ⨾☐• ☐ ⟩◁ ↦* toState (f ⨾ g) x) → len↦ rs ≡ n → ⟨ i ∣ b ∣ h ⨾☐• ☐ ⟩◁ ↦* toState (h ⨾ i) x
+        loop₂ rs refl with inspect⊎ (run ［ f ∣ b ∣ ☐ ］◁) (λ ())
+        loop₂ rs refl | inj₁ ((a₁ , rs₁) , eq₁) = rs₂'
+          where
+          rs₁' : ⟨ g ∣ b ∣ f ⨾☐• ☐ ⟩◁ ↦* ⟨ f ⨾ g ∣ a₁ ∣ ☐ ⟩◁
+          rs₁' = ↦⃖₇ ∷ appendκ↦* rs₁ refl (☐⨾ g • ☐) ++↦ ↦⃖₃ ∷ ◾
 
-        rs₂ : ⟨ i ∣ b ∣ ☐ ⟩▷ ↦* ⟨ i ∣ b₁ ∣ ☐ ⟩◁
-        rs₂ = getₜᵣ⃗ i eq
-      Loop₂⃖ {c₀} {b} (ts₁ , ts₂) | inj₂ ((c₁ , rs₁) , eq₁) = c₁ ⃗ , ts₁ ++↦ ↦⃗₇ ∷ appendκ↦* rs₁ refl (f ⨾☐• ☐) ++↦ ↦⃗₁₀ ∷ ◾
-                                                                   , ts₂ ++↦ ↦⃗₇ ∷ appendκ↦* rs₂ refl (h ⨾☐• ☐) ++↦ ↦⃗₁₀ ∷ ◾
-        where
-        eq : eval i (b ⃗) ≡ (c₁ ⃗)
-        eq = trans (sym (g~i (b ⃗))) (subst (λ z → [ (λ x → proj₁ x ⃖) , (λ x → proj₁ x ⃗) ]′ z ≡ (c₁ ⃗)) eq₁ refl)
+          rs₂ : ［ h ∣ b ∣ ☐ ］◁ ↦* ⟨ h ∣ a₁ ∣ ☐ ⟩◁
+          rs₂ = getₜᵣ⃖ h (trans (sym (f~h (b ⃖))) (eval-toState₂ rs₁))
 
-        rs₂ : ⟨ i ∣ b ∣ ☐ ⟩▷ ↦* ［ i ∣ c₁ ∣ ☐ ］▷
-        rs₂ = getₜᵣ⃗ i eq
+          xeq : x ≡ a₁ ⃖
+          xeq = toState≡₂ (sym (deterministic* rs₁' rs (λ ()) (is-stuck-toState _ _)))
+
+          rs₂' : ⟨ i ∣ b ∣ h ⨾☐• ☐ ⟩◁ ↦* toState (h ⨾ i) x
+          rs₂' rewrite xeq = ↦⃖₇ ∷ appendκ↦* rs₂ refl (☐⨾ i • ☐) ++↦ ↦⃖₃ ∷ ◾
+        loop₂ rs refl | inj₂ ((b₁ , rs₁) , eq₁) = (↦⃖₇ ∷ appendκ↦* rs₂ refl (☐⨾ i • ☐)) ++↦ proj₁ (R (len↦ rs₁'') le b₁) rs₁'' refl
+          where
+          rs₁' : ⟨ g ∣ b ∣ f ⨾☐• ☐ ⟩◁ ↦* ［ f ∣ b₁ ∣ ☐⨾ g • ☐ ］▷
+          rs₁' = ↦⃖₇ ∷ appendκ↦* rs₁ refl (☐⨾ g • ☐)
+
+          rs₂ : ［ h ∣ b ∣ ☐ ］◁ ↦* ［ h ∣ b₁ ∣ ☐ ］▷
+          rs₂ = getₜᵣ⃖ h (trans (sym (f~h (b ⃖))) (eval-toState₂ rs₁))
+
+          rs₁'' : ［ f ∣ b₁ ∣ ☐⨾ g • ☐ ］▷ ↦* toState (f ⨾ g) x
+          rs₁'' = proj₁ (deterministic*' rs₁' rs (is-stuck-toState _ _))
+
+          req : len↦ rs ≡ len↦ rs₁' + len↦ rs₁''
+          req = proj₂ (deterministic*' rs₁' rs (is-stuck-toState _ _))
+
+          le : len↦ rs₁'' <′ len↦ rs
+          le = subst (λ x → len↦ rs₁'' <′ x) (sym req) (s≤′s (n≤′m+n _ _))
+
+  ∘-resp-≈ : eval (f ⨾ g) ∼ eval (h ⨾ i)
+  ∘-resp-≈ (a ⃗) with inspect⊎ (run ⟨ f ∣ a ∣ ☐ ⟩▷) (λ ())
+  ∘-resp-≈ (a ⃗) | inj₁ ((a₁ , rs₁) , eq₁) = lem
+    where
+    rs₁' : ⟨ f ⨾ g ∣ a ∣ ☐ ⟩▷ ↦* ⟨ f ⨾ g ∣ a₁ ∣ ☐ ⟩◁
+    rs₁' = ↦⃗₃ ∷ appendκ↦* rs₁ refl (☐⨾ g • ☐) ++↦ ↦⃖₃ ∷ ◾
+
+    eq~ : eval h (a ⃗) ≡ (a₁ ⃖)
+    eq~ = trans (sym (f~h (a ⃗))) (eval-toState₁ rs₁)
+
+    rs₂' : ⟨ h ⨾ i ∣ a ∣ ☐ ⟩▷ ↦* ⟨ h ⨾ i ∣ a₁ ∣ ☐ ⟩◁
+    rs₂' = ↦⃗₃ ∷ appendκ↦* (getₜᵣ⃗ h eq~) refl (☐⨾ i • ☐) ++↦ ↦⃖₃ ∷ ◾
+
+    lem : eval (f ⨾ g) (a ⃗) ≡ eval (h ⨾ i) (a ⃗)
+    lem rewrite eval-toState₁ rs₁' | eval-toState₁ rs₂' = refl
+  ∘-resp-≈ (a ⃗) | inj₂ ((b₁ , rs₁) , eq₁) = sym (eval-toState₁ rs₂'')
+    where
+    rs : ⟨ f ⨾ g ∣ a ∣ ☐ ⟩▷ ↦* toState (f ⨾ g) (eval (f ⨾ g) (a ⃗))
+    rs = getₜᵣ⃗ (f ⨾ g) refl
+    
+    rs₁' : ⟨ f ⨾ g ∣ a ∣ ☐ ⟩▷ ↦* ［ f ∣ b₁ ∣ ☐⨾ g • ☐ ］▷
+    rs₁' = ↦⃗₃ ∷ appendκ↦* rs₁ refl (☐⨾ g • ☐)
+
+    rs₁'' : ［ f ∣ b₁ ∣ ☐⨾ g • ☐ ］▷ ↦* toState (f ⨾ g) (eval (f ⨾ g) (a ⃗))
+    rs₁'' = proj₁ (deterministic*' rs₁' rs (is-stuck-toState _ _))
+
+    eq~ : eval h (a ⃗) ≡ (b₁ ⃗)
+    eq~ = trans (sym (f~h (a ⃗))) (eval-toState₁ rs₁)
+
+    rs₂' : ⟨ h ⨾ i ∣ a ∣ ☐ ⟩▷ ↦* ［ h ∣ b₁ ∣ ☐⨾ i • ☐ ］▷
+    rs₂' = ↦⃗₃ ∷ appendκ↦* (getₜᵣ⃗ h eq~) refl (☐⨾ i • ☐)
+
+    rs₂'' : ⟨ h ⨾ i ∣ a ∣ ☐ ⟩▷ ↦* toState (h ⨾ i) (eval (f ⨾ g) (a ⃗))
+    rs₂'' = rs₂' ++↦ proj₁ (loop (len↦ rs₁'') b₁) rs₁'' refl
+  ∘-resp-≈ (c ⃖) with inspect⊎ (run ［ g ∣ c ∣ ☐ ］◁) (λ ())
+  ∘-resp-≈ (c ⃖) | inj₁ ((b₁ , rs₁) , eq₁) = sym (eval-toState₂ rs₂'')
+    where
+    rs : ［ f ⨾ g ∣ c ∣ ☐ ］◁ ↦* toState (f ⨾ g) (eval (f ⨾ g) (c ⃖))
+    rs = getₜᵣ⃖ (f ⨾ g) refl
+
+    rs₁' : ［ f ⨾ g ∣ c ∣ ☐ ］◁ ↦* ⟨ g ∣ b₁ ∣ f ⨾☐• ☐ ⟩◁
+    rs₁' = ↦⃖₁₀ ∷ appendκ↦* rs₁ refl (f ⨾☐• ☐)
+
+    rs₁'' : ⟨ g ∣ b₁ ∣ f ⨾☐• ☐ ⟩◁ ↦* toState (f ⨾ g) (eval (f ⨾ g) (c ⃖))
+    rs₁'' = proj₁ (deterministic*' rs₁' rs (is-stuck-toState _ _))
+
+    eq~ : eval i (c ⃖) ≡ (b₁ ⃖)
+    eq~ = trans (sym (g~i (c ⃖))) (eval-toState₂ rs₁)
+
+    rs₂' : ［ h ⨾ i ∣ c ∣ ☐ ］◁ ↦* ⟨ i ∣ b₁ ∣ h ⨾☐• ☐ ⟩◁
+    rs₂' = ↦⃖₁₀ ∷ appendκ↦* (getₜᵣ⃖ i eq~) refl (h ⨾☐• ☐)
+
+    rs₂'' : ［ h ⨾ i ∣ c ∣ ☐ ］◁ ↦* toState (h ⨾ i) (eval (f ⨾ g) (c ⃖))
+    rs₂'' = rs₂' ++↦ proj₂ (loop (len↦ rs₁'') b₁) rs₁'' refl
+  ∘-resp-≈ (c ⃖) | inj₂ ((c₁ , rs₁) , eq₁) = lem
+    where
+    rs₁' : ［ f ⨾ g ∣ c ∣ ☐ ］◁ ↦* ［ f ⨾ g ∣ c₁ ∣ ☐ ］▷
+    rs₁' = ↦⃖₁₀ ∷ appendκ↦* rs₁ refl (f ⨾☐• ☐) ++↦ ↦⃗₁₀ ∷ ◾
+
+    eq~ : eval i (c ⃖) ≡ (c₁ ⃗)
+    eq~ = trans (sym (g~i (c ⃖))) (eval-toState₂ rs₁)
+
+    rs₂' : ［ h ⨾ i ∣ c ∣ ☐ ］◁ ↦* ［ h ⨾ i ∣ c₁ ∣ ☐ ］▷
+    rs₂' = ↦⃖₁₀ ∷ appendκ↦* (getₜᵣ⃖ i eq~) refl (h ⨾☐• ☐) ++↦ ↦⃗₁₀ ∷ ◾
+
+    lem : eval (f ⨾ g) (c ⃖) ≡ eval (h ⨾ i) (c ⃖)
+    lem rewrite eval-toState₂ rs₁' | eval-toState₂ rs₂' = refl
 
 open ∘-resp-≈ public
 
@@ -760,438 +537,454 @@ module ∘-resp-≈ᵢ {A B C : 𝕌} {g i : B ↔ C} {f h : A ↔ B} (g~i : int
 open ∘-resp-≈ᵢ public
 
 module assoc {A B C D : 𝕌} {f : A ↔ B} {g : B ↔ C} {h : C ↔ D} where
-  mutual
-    assoc : eval (f ⨾ g ⨾ h) ∼ eval ((f ⨾ g) ⨾ h)
-    assoc (a ⃗) with inspect⊎ (run ⟨ f ∣ a ∣ ☐ ⟩▷) (λ ())
-    assoc (a ⃗) | inj₁ ((a₁ , rs₁) , eq₁) = lem
+  private
+    loop : ∀ {x} (n : ℕ)
+         → (∀ b → ((rs : ［ f ∣ b ∣ ☐⨾ g ⨾ h • ☐ ］▷ ↦* toState (f ⨾ (g ⨾ h)) x) → len↦ rs ≡ n → ［ f ∣ b ∣ ☐⨾ g • ☐⨾ h • ☐ ］▷ ↦* toState ((f ⨾ g) ⨾ h) x)
+                × ((rs : ⟨ g ∣ b ∣ ☐⨾ h • (f ⨾☐• ☐) ⟩◁ ↦* toState (f ⨾ (g ⨾ h)) x) → len↦ rs ≡ n → ⟨ g ∣ b ∣ f ⨾☐• (☐⨾ h • ☐) ⟩◁ ↦* toState ((f ⨾ g) ⨾ h) x))
+         × (∀ c → ((rs : ［ g ∣ c ∣ ☐⨾ h • (f ⨾☐• ☐) ］▷ ↦* toState (f ⨾ (g ⨾ h)) x) → len↦ rs ≡ n → ［ g ∣ c ∣ f ⨾☐• (☐⨾ h • ☐) ］▷ ↦* toState ((f ⨾ g) ⨾ h) x)
+                × ((rs : ⟨ h ∣ c ∣ g ⨾☐• (f ⨾☐• ☐) ⟩◁ ↦* toState (f ⨾ (g ⨾ h)) x) → len↦ rs ≡ n → ⟨ h ∣ c ∣ f ⨾ g ⨾☐• ☐ ⟩◁ ↦* toState ((f ⨾ g) ⨾ h) x))
+    loop {x} = <′-rec (λ n → _) loop-rec
       where
-      rs₁' : ⟨ f ⨾ (g ⨾ h) ∣ a ∣ ☐ ⟩▷ ↦* ⟨ f ⨾ (g ⨾ h) ∣ a₁ ∣ ☐ ⟩◁
-      rs₁' = ↦⃗₃ ∷ appendκ↦* rs₁ refl (☐⨾ g ⨾ h • ☐) ++↦ ↦⃖₃ ∷ ◾
-
-      rs₂' : ⟨ (f ⨾ g) ⨾ h ∣ a ∣ ☐ ⟩▷ ↦* ⟨ (f ⨾ g) ⨾ h ∣ a₁ ∣ ☐ ⟩◁
-      rs₂' = (↦⃗₃ ∷ ↦⃗₃ ∷ ◾) ++↦ appendκ↦* rs₁ refl (☐⨾ g • ☐⨾ h • ☐) ++↦ ↦⃖₃ ∷ ↦⃖₃ ∷ ◾
-
-      lem : eval (f ⨾ g ⨾ h) (a ⃗) ≡ eval ((f ⨾ g) ⨾ h) (a ⃗)
-      lem rewrite eval-toState₁ rs₁' | eval-toState₁ rs₂' = refl
-    assoc (a ⃗) | inj₂ ((b₁ , rs₁) , eq₁) = lem
-      where
-      rs₁' : ⟨ f ⨾ (g ⨾ h) ∣ a ∣ ☐ ⟩▷ ↦* ［ f ∣ b₁ ∣ ☐⨾ g ⨾ h • ☐ ］▷
-      rs₁' = ↦⃗₃ ∷ appendκ↦* rs₁ refl (☐⨾ g ⨾ h • ☐)
-
-      rs₂' : ⟨ (f ⨾ g) ⨾ h ∣ a ∣ ☐ ⟩▷ ↦* ［ f ∣ b₁ ∣ ☐⨾ g • ☐⨾ h • ☐ ］▷
-      rs₂' = (↦⃗₃ ∷ ↦⃗₃ ∷ ◾) ++↦ appendκ↦* rs₁ refl (☐⨾ g • ☐⨾ h • ☐)
-
-      lem : eval (f ⨾ g ⨾ h) (a ⃗) ≡ eval ((f ⨾ g) ⨾ h) (a ⃗)
-      lem with Loop₁⃗ (rs₂' , rs₁')
-      ... | (x , rs₁'' , rs₂'') rewrite eval-toState₁ rs₁'' | eval-toState₁ rs₂'' = refl
-    assoc (d ⃖) with inspect⊎ (run ［ h ∣ d ∣ ☐ ］◁) (λ ())
-    assoc (d ⃖) | inj₁ ((c₁ , rs₁) , eq₁) = lem
-      where
-      rs₁' : ［ f ⨾ (g ⨾ h) ∣ d ∣ ☐ ］◁ ↦* ［ g ∣ c₁ ∣ ☐⨾ h • (f ⨾☐• ☐) ］◁
-      rs₁' = (↦⃖₁₀ ∷ ↦⃖₁₀ ∷ ◾) ++↦ appendκ↦* rs₁ refl (g ⨾☐• (f ⨾☐• ☐)) ++↦ ↦⃖₇ ∷ ◾
-
-      rs₂' : ［ (f ⨾ g) ⨾ h ∣ d ∣ ☐ ］◁ ↦* ［ g ∣ c₁ ∣ f ⨾☐• (☐⨾ h • ☐) ］◁
-      rs₂' = (↦⃖₁₀ ∷ ◾) ++↦ appendκ↦* rs₁ refl ((f ⨾ g) ⨾☐• ☐) ++↦ ↦⃖₇ ∷ ↦⃖₁₀ ∷ ◾
-
-      lem : eval (f ⨾ g ⨾ h) (d ⃖) ≡ eval ((f ⨾ g) ⨾ h) (d ⃖)
-      lem with Loop₄⃖ (rs₂' , rs₁')
-      ... | (x , rs₁'' , rs₂'') rewrite eval-toState₂ rs₁'' | eval-toState₂ rs₂'' = refl
-    assoc (d ⃖) | inj₂ ((d₁ , rs₁) , eq₁) = lem
-      where
-      rs₁' : ［ f ⨾ (g ⨾ h) ∣ d ∣ ☐ ］◁ ↦* ［ f ⨾ (g ⨾ h) ∣ d₁ ∣ ☐ ］▷
-      rs₁' = (↦⃖₁₀ ∷ ↦⃖₁₀ ∷ ◾) ++↦ appendκ↦* rs₁ refl (g ⨾☐• (f ⨾☐• ☐)) ++↦ ↦⃗₁₀ ∷ ↦⃗₁₀ ∷ ◾
-
-      rs₂' : ［ (f ⨾ g) ⨾ h ∣ d ∣ ☐ ］◁ ↦* ［ (f ⨾ g) ⨾ h ∣ d₁ ∣ ☐ ］▷
-      rs₂' = (↦⃖₁₀ ∷ ◾) ++↦ appendκ↦* rs₁ refl ((f ⨾ g) ⨾☐• ☐) ++↦ ↦⃗₁₀ ∷ ◾
-
-      lem : eval (f ⨾ g ⨾ h) (d ⃖) ≡ eval ((f ⨾ g) ⨾ h) (d ⃖)
-      lem rewrite eval-toState₂ rs₁' | eval-toState₂ rs₂' = refl
-
-    private
-      {-# TERMINATING #-}
-      Loop₁⃗ : {a₀ : ⟦ A ⟧} {b : ⟦ B ⟧}
-             → ⟨ (f ⨾ g) ⨾ h ∣ a₀ ∣ ☐ ⟩▷ ↦* ［ f ∣ b ∣ ☐⨾ g • ☐⨾ h • ☐ ］▷
-             × ⟨ f ⨾ (g ⨾ h) ∣ a₀ ∣ ☐ ⟩▷ ↦* ［ f ∣ b ∣ ☐⨾ g ⨾ h • ☐ ］▷
-             → Σ[ x ∈ Val D A ]
-               ⟨ (f ⨾ g) ⨾ h ∣ a₀ ∣ ☐ ⟩▷ ↦* toState ((f ⨾ g) ⨾ h) x
-             × ⟨ f ⨾ (g ⨾ h) ∣ a₀ ∣ ☐ ⟩▷ ↦* toState (f ⨾ (g ⨾ h)) x
-      Loop₁⃗ {a₀} {b} (ts₁ , ts₂) with inspect⊎ (run ⟨ g ∣ b ∣ ☐ ⟩▷) (λ ())
-      Loop₁⃗ {a₀} {b} (ts₁ , ts₂) | inj₁ ((b₁ , rs₁) , eq₁) = Loop₂⃗ (ts₁ ++↦ rs₁' , ts₂ ++↦ rs₂')
+      loop-rec : (n : ℕ) → (∀ m → m <′ n → _) → _
+      loop-rec n R = loop₁ , loop₂
         where
-        rs₁' : ［ f ∣ b ∣ ☐⨾ g • ☐⨾ h • ☐ ］▷ ↦* ［ f ∣ b₁ ∣ ☐⨾ g • ☐⨾ h • ☐ ］◁
-        rs₁' = ↦⃗₇ ∷ appendκ↦* rs₁ refl (f ⨾☐• (☐⨾ h • ☐)) ++↦ ↦⃖₇ ∷ ◾
+        loop₁ : ∀ b → ((rs : ［ f ∣ b ∣ ☐⨾ g ⨾ h • ☐ ］▷ ↦* toState (f ⨾ (g ⨾ h)) x) → len↦ rs ≡ n → ［ f ∣ b ∣ ☐⨾ g • ☐⨾ h • ☐ ］▷ ↦* toState ((f ⨾ g) ⨾ h) x)
+                    × ((rs : ⟨ g ∣ b ∣ ☐⨾ h • (f ⨾☐• ☐) ⟩◁ ↦* toState (f ⨾ (g ⨾ h)) x) → len↦ rs ≡ n → ⟨ g ∣ b ∣ f ⨾☐• (☐⨾ h • ☐) ⟩◁ ↦* toState ((f ⨾ g) ⨾ h) x)
+        loop₁ b = loop⃗ , loop⃖
+          where
+          loop⃗ : (rs : ［ f ∣ b ∣ ☐⨾ g ⨾ h • ☐ ］▷ ↦* toState (f ⨾ (g ⨾ h)) x) → len↦ rs ≡ n → ［ f ∣ b ∣ ☐⨾ g • ☐⨾ h • ☐ ］▷ ↦* toState ((f ⨾ g) ⨾ h) x
+          loop⃗ rs refl with inspect⊎ (run ⟨ g ∣ b ∣ ☐ ⟩▷) (λ ())
+          loop⃗ rs refl | inj₁ ((b' , rsb) , _) = rs₂' ++↦ proj₂ (proj₁ (R (len↦ rs₁'') le) b') rs₁'' refl
+            where
+            rs₁' : ［ f ∣ b ∣ ☐⨾ g ⨾ h • ☐ ］▷ ↦* ⟨ g ∣ b' ∣ ☐⨾ h • (f ⨾☐• ☐) ⟩◁
+            rs₁' = (↦⃗₇ ∷ ↦⃗₃ ∷ ◾) ++↦ appendκ↦* rsb refl (☐⨾ h • (f ⨾☐• ☐))
 
-        rs₂' : ［ f ∣ b ∣ ☐⨾ g ⨾ h • ☐ ］▷ ↦* ［ f ∣ b₁ ∣ ☐⨾ g ⨾ h • ☐ ］◁
-        rs₂' = (↦⃗₇ ∷ ↦⃗₃ ∷ ◾) ++↦ appendκ↦* rs₁ refl (☐⨾ h • (f ⨾☐• ☐)) ++↦ ↦⃖₃ ∷ ↦⃖₇ ∷ ◾
-      Loop₁⃗ {a₀} {b} (ts₁ , ts₂) | inj₂ ((c₁ , rs₁) , eq₁) = Loop₃⃗ (ts₁ ++↦ rs₁' , ts₂ ++↦ rs₂')
-        where
-        rs₁' : ［ f ∣ b ∣ ☐⨾ g • ☐⨾ h • ☐ ］▷ ↦* ［ g ∣ c₁ ∣ f ⨾☐• (☐⨾ h • ☐) ］▷
-        rs₁' = ↦⃗₇ ∷ appendκ↦* rs₁ refl (f ⨾☐• (☐⨾ h • ☐))
+            rs₁'' : ⟨ g ∣ b' ∣ ☐⨾ h • (f ⨾☐• ☐) ⟩◁ ↦* toState (f ⨾ (g ⨾ h)) x
+            rs₁'' = proj₁ (deterministic*' rs₁' rs (is-stuck-toState _ _))
 
-        rs₂' : ［ f ∣ b ∣ ☐⨾ g ⨾ h • ☐ ］▷ ↦* ［ g ∣ c₁ ∣ ☐⨾ h • (f ⨾☐• ☐) ］▷
-        rs₂' = (↦⃗₇ ∷ ↦⃗₃ ∷ ◾) ++↦ appendκ↦* rs₁ refl (☐⨾ h • (f ⨾☐• ☐))
+            rs₂' : ［ f ∣ b ∣ ☐⨾ g • ☐⨾ h • ☐ ］▷ ↦* ⟨ g ∣ b' ∣ f ⨾☐• (☐⨾ h • ☐) ⟩◁
+            rs₂' = ↦⃗₇ ∷ appendκ↦* rsb refl (f ⨾☐• (☐⨾ h • ☐))
+            
+            req : len↦ rs ≡ len↦ rs₁' + len↦ rs₁''
+            req = proj₂ (deterministic*' rs₁' rs (is-stuck-toState _ _))
 
-      Loop₂⃗ : {a₀ : ⟦ A ⟧} {b : ⟦ B ⟧}
-             → ⟨ (f ⨾ g) ⨾ h ∣ a₀ ∣ ☐ ⟩▷ ↦* ［ f ∣ b ∣ ☐⨾ g • ☐⨾ h • ☐ ］◁
-             × ⟨ f ⨾ (g ⨾ h) ∣ a₀ ∣ ☐ ⟩▷ ↦* ［ f ∣ b ∣ ☐⨾ g ⨾ h • ☐ ］◁
-             → Σ[ x ∈ Val D A ]
-               ⟨ (f ⨾ g) ⨾ h ∣ a₀ ∣ ☐ ⟩▷ ↦* toState ((f ⨾ g) ⨾ h) x
-             × ⟨ f ⨾ (g ⨾ h) ∣ a₀ ∣ ☐ ⟩▷ ↦* toState (f ⨾ (g ⨾ h)) x
-      Loop₂⃗ {a₀} {b} (ts₁ , ts₂) with inspect⊎ (run ［ f ∣ b ∣ ☐ ］◁) (λ ())
-      Loop₂⃗ {a₀} {b} (ts₁ , ts₂) | inj₁ ((a₁ , rs₁) , eq₁) = a₁ ⃖ , ts₁ ++↦ rs₁' , ts₂ ++↦ rs₂'
-        where
-        rs₁' : ［ f ∣ b ∣ ☐⨾ g • ☐⨾ h • ☐ ］◁ ↦* ⟨ (f ⨾ g) ⨾ h ∣ a₁ ∣ ☐ ⟩◁
-        rs₁' = appendκ↦* rs₁ refl (☐⨾ g • ☐⨾ h • ☐) ++↦ ↦⃖₃ ∷ ↦⃖₃ ∷ ◾
+            le : len↦ rs₁'' <′ len↦ rs
+            le = subst (λ x → len↦ rs₁'' <′ x) (sym req) (s≤′s (n≤′m+n _ _))            
+          loop⃗ rs refl | inj₂ ((c  , rsb) , _) = rs₂' ++↦ proj₁ (proj₂ (R (len↦ rs₁'') le) c) rs₁'' refl
+            where
+            rs₁' : ［ f ∣ b ∣ ☐⨾ g ⨾ h • ☐ ］▷ ↦* ［ g ∣ c ∣ ☐⨾ h • (f ⨾☐• ☐) ］▷
+            rs₁' = (↦⃗₇ ∷ ↦⃗₃ ∷ ◾) ++↦ appendκ↦* rsb refl (☐⨾ h • (f ⨾☐• ☐))
 
-        rs₂' : ［ f ∣ b ∣ ☐⨾ g ⨾ h • ☐ ］◁ ↦* ⟨ f ⨾ (g ⨾ h) ∣ a₁ ∣ ☐ ⟩◁
-        rs₂' = appendκ↦* rs₁ refl (☐⨾ g ⨾ h • ☐) ++↦ ↦⃖₃ ∷ ◾
-      Loop₂⃗ {a₀} {b} (ts₁ , ts₂) | inj₂ ((b₁ , rs₁) , eq₁) = Loop₁⃗ (ts₁ ++↦ rs₁' , ts₂ ++↦ rs₂')
-        where
-        rs₁' : ［ f ∣ b ∣ ☐⨾ g • (☐⨾ h • ☐) ］◁ ↦* ［ f ∣ b₁ ∣ ☐⨾ g • (☐⨾ h • ☐) ］▷
-        rs₁' = appendκ↦* rs₁ refl (☐⨾ g • ☐⨾ h • ☐)
+            rs₁'' : ［ g ∣ c ∣ ☐⨾ h • (f ⨾☐• ☐) ］▷ ↦* toState (f ⨾ (g ⨾ h)) x
+            rs₁'' = proj₁ (deterministic*' rs₁' rs (is-stuck-toState _ _))
 
-        rs₂' : ［ f ∣ b ∣ ☐⨾ g ⨾ h • ☐ ］◁ ↦* ［ f ∣ b₁ ∣ ☐⨾ g ⨾ h • ☐ ］▷
-        rs₂' = appendκ↦* rs₁ refl (☐⨾ g ⨾ h • ☐)
+            rs₂' : ［ f ∣ b ∣ ☐⨾ g • ☐⨾ h • ☐ ］▷ ↦* ［ g ∣ c ∣ f ⨾☐• (☐⨾ h • ☐) ］▷
+            rs₂' = ↦⃗₇ ∷ appendκ↦* rsb refl (f ⨾☐• (☐⨾ h • ☐))
+            
+            req : len↦ rs ≡ len↦ rs₁' + len↦ rs₁''
+            req = proj₂ (deterministic*' rs₁' rs (is-stuck-toState _ _))
 
-      Loop₃⃗ : {a₀ : ⟦ A ⟧} {c : ⟦ C ⟧}
-             → ⟨ (f ⨾ g) ⨾ h ∣ a₀ ∣ ☐ ⟩▷ ↦* ［ g ∣ c ∣ f ⨾☐• (☐⨾ h • ☐) ］▷
-             × ⟨ f ⨾ (g ⨾ h) ∣ a₀ ∣ ☐ ⟩▷ ↦* ［ g ∣ c ∣ ☐⨾ h • (f ⨾☐• ☐) ］▷
-             → Σ[ x ∈ Val D A ]
-               ⟨ (f ⨾ g) ⨾ h ∣ a₀ ∣ ☐ ⟩▷ ↦* toState ((f ⨾ g) ⨾ h) x
-             × ⟨ f ⨾ (g ⨾ h) ∣ a₀ ∣ ☐ ⟩▷ ↦* toState (f ⨾ (g ⨾ h)) x
-      Loop₃⃗ {a₀} {c} (ts₁ , ts₂) with inspect⊎ (run ⟨ h ∣ c ∣ ☐ ⟩▷) (λ ())
-      Loop₃⃗ {a₀} {c} (ts₁ , ts₂) | inj₁ ((c₁ , rs₁) , eq₁) = Loop₄⃗ (ts₁ ++↦ rs₁' , ts₂ ++↦ rs₂')
-        where
-        rs₁' : ［ g ∣ c ∣ f ⨾☐• (☐⨾ h • ☐) ］▷ ↦* ［ g ∣ c₁ ∣ f ⨾☐• (☐⨾ h • ☐) ］◁
-        rs₁' = (↦⃗₁₀ ∷ ↦⃗₇ ∷ ◾) ++↦ appendκ↦* rs₁ refl (f ⨾ g ⨾☐• ☐) ++↦ ↦⃖₇ ∷ ↦⃖₁₀ ∷ ◾
+            le : len↦ rs₁'' <′ len↦ rs
+            le = subst (λ x → len↦ rs₁'' <′ x) (sym req) (s≤′s (n≤′m+n _ _))            
+          loop⃖ : (rs : ⟨ g ∣ b ∣ ☐⨾ h • (f ⨾☐• ☐) ⟩◁ ↦* toState (f ⨾ (g ⨾ h)) x) → len↦ rs ≡ n → ⟨ g ∣ b ∣ f ⨾☐• (☐⨾ h • ☐) ⟩◁ ↦* toState ((f ⨾ g) ⨾ h) x
+          loop⃖ rs refl with inspect⊎ (run ［ f ∣ b ∣ ☐ ］◁) (λ ())
+          loop⃖ rs refl | inj₁ ((a  , rsb) , eq) = lem
+            where
+            rs₁' : ⟨ g ∣ b ∣ ☐⨾ h • (f ⨾☐• ☐) ⟩◁ ↦* ⟨ f ⨾ (g ⨾ h) ∣ a ∣ ☐ ⟩◁
+            rs₁' = (↦⃖₃ ∷ ↦⃖₇ ∷ ◾) ++↦ appendκ↦* rsb refl (☐⨾ g ⨾ h • ☐) ++↦ ↦⃖₃ ∷ ◾
 
-        rs₂' : ［ g ∣ c ∣ ☐⨾ h • (f ⨾☐• ☐) ］▷ ↦* ［ g ∣ c₁ ∣ ☐⨾ h • (f ⨾☐• ☐) ］◁
-        rs₂' = ↦⃗₇ ∷ appendκ↦* rs₁ refl (g ⨾☐• (f ⨾☐• ☐)) ++↦ ↦⃖₇ ∷ ◾
-      Loop₃⃗ {a₀} {c} (ts₁ , ts₂) | inj₂ ((d₁ , rs₁) , eq₁) = d₁ ⃗ , ts₁ ++↦ rs₁' , ts₂ ++↦ rs₂'
-        where
-        rs₁' : ［ g ∣ c ∣ f ⨾☐• (☐⨾ h • ☐) ］▷ ↦* ［ (f ⨾ g) ⨾ h ∣ d₁ ∣ ☐ ］▷
-        rs₁' = (↦⃗₁₀ ∷ ↦⃗₇ ∷ ◾) ++↦ appendκ↦* rs₁ refl (f ⨾ g ⨾☐• ☐) ++↦ ↦⃗₁₀ ∷ ◾
+            xeq : x ≡ a ⃖
+            xeq = toState≡₂ (sym (deterministic* rs₁' rs (λ ()) (is-stuck-toState _ _)))           
 
-        rs₂' : ［ g ∣ c ∣ ☐⨾ h • (f ⨾☐• ☐) ］▷ ↦* ［ f ⨾ g ⨾ h ∣ d₁ ∣ ☐ ］▷
-        rs₂' = ↦⃗₇ ∷ appendκ↦* rs₁ refl (g ⨾☐• (f ⨾☐• ☐)) ++↦ ↦⃗₁₀ ∷ ↦⃗₁₀ ∷ ◾
+            lem : ⟨ g ∣ b ∣ f ⨾☐• (☐⨾ h • ☐) ⟩◁ ↦* toState ((f ⨾ g) ⨾ h) x
+            lem rewrite xeq = (↦⃖₇ ∷ ◾) ++↦ appendκ↦* rsb refl (☐⨾ g • ☐⨾ h • ☐) ++↦ ↦⃖₃ ∷ ↦⃖₃ ∷ ◾
+          loop⃖ rs refl | inj₂ ((b' , rsb) , eq) = ↦⃖₇ ∷ rs₂' ++↦ proj₁ (proj₁ (R (len↦ rs₁'') le) b') rs₁'' refl
+            where
+            rs₁' : ⟨ g ∣ b ∣ ☐⨾ h • (f ⨾☐• ☐) ⟩◁ ↦* ［ f ∣ b' ∣ ☐⨾ g ⨾ h • ☐ ］▷
+            rs₁' = (↦⃖₃ ∷ ↦⃖₇ ∷ ◾) ++↦ appendκ↦* rsb refl (☐⨾ g ⨾ h • ☐)
 
-      Loop₄⃗ : {a₀ : ⟦ A ⟧} {c : ⟦ C ⟧}
-             → ⟨ (f ⨾ g) ⨾ h ∣ a₀ ∣ ☐ ⟩▷ ↦* ［ g ∣ c ∣ f ⨾☐• (☐⨾ h • ☐) ］◁
-             × ⟨ f ⨾ (g ⨾ h) ∣ a₀ ∣ ☐ ⟩▷ ↦* ［ g ∣ c ∣ ☐⨾ h • (f ⨾☐• ☐) ］◁
-             → Σ[ x ∈ Val D A ]
-               ⟨ (f ⨾ g) ⨾ h ∣ a₀ ∣ ☐ ⟩▷ ↦* toState ((f ⨾ g) ⨾ h) x
-             × ⟨ f ⨾ (g ⨾ h) ∣ a₀ ∣ ☐ ⟩▷ ↦* toState (f ⨾ (g ⨾ h)) x
-      Loop₄⃗ {a₀} {c} (ts₁ , ts₂) with inspect⊎ (run ［ g ∣ c ∣ ☐ ］◁) (λ ())
-      Loop₄⃗ {a₀} {c} (ts₁ , ts₂) | inj₁ ((b₁ , rs₁) , eq₁) = Loop₂⃗ (ts₁ ++↦ rs₁' , ts₂ ++↦ rs₂')
-        where
-        rs₁' : ［ g ∣ c ∣ f ⨾☐• (☐⨾ h • ☐) ］◁ ↦* ［ f ∣ b₁ ∣ ☐⨾ g • (☐⨾ h • ☐) ］◁
-        rs₁' = appendκ↦* rs₁ refl (f ⨾☐• (☐⨾ h • ☐)) ++↦ ↦⃖₇ ∷ ◾
+            rs₁'' : ［ f ∣ b' ∣ ☐⨾ g ⨾ h • ☐ ］▷ ↦* (toState (f ⨾ g ⨾ h) x)
+            rs₁'' = proj₁ (deterministic*' rs₁' rs (is-stuck-toState _ _))
 
-        rs₂' : ［ g ∣ c ∣ ☐⨾ h • (f ⨾☐• ☐) ］◁ ↦* ［ f ∣ b₁ ∣ ☐⨾ g ⨾ h • ☐ ］◁
-        rs₂' = appendκ↦* rs₁ refl (☐⨾ h • (f ⨾☐• ☐)) ++↦ ↦⃖₃ ∷ ↦⃖₇ ∷ ◾
-      Loop₄⃗ {a₀} {c} (ts₁ , ts₂) | inj₂ ((c₁ , rs₁) , eq₁) = Loop₃⃗ (ts₁ ++↦ rs₁' , ts₂ ++↦ rs₂')
-        where
-        rs₁' : ［ g ∣ c ∣ f ⨾☐• (☐⨾ h • ☐) ］◁ ↦* ［ g ∣ c₁ ∣ f ⨾☐• (☐⨾ h • ☐) ］▷
-        rs₁' = appendκ↦* rs₁ refl (f ⨾☐• (☐⨾ h • ☐))
+            rs₂' : ［ f ∣ b ∣ ☐⨾ g • ☐⨾ h • ☐ ］◁ ↦* ［ f ∣ b' ∣ ☐⨾ g • (☐⨾ h • ☐) ］▷
+            rs₂' = appendκ↦* rsb refl (☐⨾ g • ☐⨾ h • ☐)
 
-        rs₂' : ［ g ∣ c ∣ ☐⨾ h • (f ⨾☐• ☐) ］◁ ↦* ［ g ∣ c₁ ∣ ☐⨾ h • (f ⨾☐• ☐) ］▷
-        rs₂' = appendκ↦* rs₁ refl (☐⨾ h • (f ⨾☐• ☐))
+            req : len↦ rs ≡ len↦ rs₁' + len↦ rs₁''
+            req = proj₂ (deterministic*' rs₁' rs (is-stuck-toState _ _))
 
-      Loop₁⃖ : {d₀ : ⟦ D ⟧} {b : ⟦ B ⟧}
-             → ［ (f ⨾ g) ⨾ h ∣ d₀ ∣ ☐ ］◁ ↦* ［ f ∣ b ∣ ☐⨾ g • ☐⨾ h • ☐ ］▷
-             × ［ f ⨾ (g ⨾ h) ∣ d₀ ∣ ☐ ］◁ ↦* ［ f ∣ b ∣ ☐⨾ g ⨾ h • ☐ ］▷
-             → Σ[ x ∈ Val D A ]
-               ［ (f ⨾ g) ⨾ h ∣ d₀ ∣ ☐ ］◁ ↦* toState ((f ⨾ g) ⨾ h) x
-             × ［ f ⨾ (g ⨾ h) ∣ d₀ ∣ ☐ ］◁ ↦* toState (f ⨾ (g ⨾ h)) x
-      Loop₁⃖ {d₀} {b} (ts₁ , ts₂) with inspect⊎ (run ⟨ g ∣ b ∣ ☐ ⟩▷) (λ ())
-      Loop₁⃖ {d₀} {b} (ts₁ , ts₂) | inj₁ ((b₁ , rs₁) , eq₁) = Loop₂⃖ (ts₁ ++↦ rs₁' , ts₂ ++↦ rs₂')
-        where
-        rs₁' : ［ f ∣ b ∣ ☐⨾ g • ☐⨾ h • ☐ ］▷ ↦* ［ f ∣ b₁ ∣ ☐⨾ g • ☐⨾ h • ☐ ］◁
-        rs₁' = ↦⃗₇ ∷ appendκ↦* rs₁ refl (f ⨾☐• (☐⨾ h • ☐)) ++↦ ↦⃖₇ ∷ ◾
+            le : len↦ rs₁'' <′ len↦ rs
+            le = subst (λ x → len↦ rs₁'' <′ x) (sym req) (s≤′s (n≤′m+n _ _))
+        loop₂ : ∀ c → ((rs : ［ g ∣ c ∣ ☐⨾ h • (f ⨾☐• ☐) ］▷ ↦* toState (f ⨾ (g ⨾ h)) x) → len↦ rs ≡ n → ［ g ∣ c ∣ f ⨾☐• (☐⨾ h • ☐) ］▷ ↦* toState ((f ⨾ g) ⨾ h) x)
+                    × ((rs : ⟨ h ∣ c ∣ g ⨾☐• (f ⨾☐• ☐) ⟩◁ ↦* toState (f ⨾ (g ⨾ h)) x) → len↦ rs ≡ n → ⟨ h ∣ c ∣ f ⨾ g ⨾☐• ☐ ⟩◁ ↦* toState ((f ⨾ g) ⨾ h) x)
+        loop₂ c = loop⃗ , loop⃖
+          where
+          loop⃗ : (rs : ［ g ∣ c ∣ ☐⨾ h • (f ⨾☐• ☐) ］▷ ↦* toState (f ⨾ (g ⨾ h)) x) → len↦ rs ≡ n → ［ g ∣ c ∣ f ⨾☐• (☐⨾ h • ☐) ］▷ ↦* toState ((f ⨾ g) ⨾ h) x
+          loop⃗ rs refl with inspect⊎ (run ⟨ h ∣ c ∣ ☐ ⟩▷) (λ ())
+          loop⃗ rs refl | inj₁ ((c' , rsc) , eq) = rs₂' ++↦ proj₂ (proj₂ (R (len↦ rs₁'') le) c') rs₁'' refl
+            where
+            rs₁' : ［ g ∣ c ∣ ☐⨾ h • (f ⨾☐• ☐) ］▷ ↦* ⟨ h ∣ c' ∣ g ⨾☐• (f ⨾☐• ☐) ⟩◁
+            rs₁' = ↦⃗₇ ∷ appendκ↦* rsc refl (g ⨾☐• (f ⨾☐• ☐))
 
-        rs₂' : ［ f ∣ b ∣ ☐⨾ g ⨾ h • ☐ ］▷ ↦* ［ f ∣ b₁ ∣ ☐⨾ g ⨾ h • ☐ ］◁
-        rs₂' = (↦⃗₇ ∷ ↦⃗₃ ∷ ◾) ++↦ appendκ↦* rs₁ refl (☐⨾ h • (f ⨾☐• ☐)) ++↦ ↦⃖₃ ∷ ↦⃖₇ ∷ ◾
-      Loop₁⃖ {d₀} {b} (ts₁ , ts₂) | inj₂ ((c₁ , rs₁) , eq₁) = Loop₃⃖ (ts₁ ++↦ rs₁' , ts₂ ++↦ rs₂')
-        where
-        rs₁' : ［ f ∣ b ∣ ☐⨾ g • ☐⨾ h • ☐ ］▷ ↦* ［ g ∣ c₁ ∣ f ⨾☐• (☐⨾ h • ☐) ］▷
-        rs₁' = ↦⃗₇ ∷ appendκ↦* rs₁ refl (f ⨾☐• (☐⨾ h • ☐))
+            rs₁'' : ⟨ h ∣ c' ∣ g ⨾☐• (f ⨾☐• ☐) ⟩◁ ↦* (toState (f ⨾ g ⨾ h) x)
+            rs₁'' = proj₁ (deterministic*' rs₁' rs (is-stuck-toState _ _))
 
-        rs₂' : ［ f ∣ b ∣ ☐⨾ g ⨾ h • ☐ ］▷ ↦* ［ g ∣ c₁ ∣ ☐⨾ h • (f ⨾☐• ☐) ］▷
-        rs₂' = (↦⃗₇ ∷ ↦⃗₃ ∷ ◾) ++↦ appendκ↦* rs₁ refl (☐⨾ h • (f ⨾☐• ☐))
+            rs₂' : ［ g ∣ c ∣ f ⨾☐• (☐⨾ h • ☐) ］▷ ↦* ⟨ h ∣ c' ∣ f ⨾ g ⨾☐• ☐ ⟩◁
+            rs₂' = (↦⃗₁₀ ∷ ↦⃗₇ ∷ ◾) ++↦ appendκ↦* rsc refl (f ⨾ g ⨾☐• ☐)
 
-      Loop₂⃖ : {d₀ : ⟦ D ⟧} {b : ⟦ B ⟧}
-             → ［ (f ⨾ g) ⨾ h ∣ d₀ ∣ ☐ ］◁ ↦* ［ f ∣ b ∣ ☐⨾ g • ☐⨾ h • ☐ ］◁
-             × ［ f ⨾ (g ⨾ h) ∣ d₀ ∣ ☐ ］◁ ↦* ［ f ∣ b ∣ ☐⨾ g ⨾ h • ☐ ］◁
-             → Σ[ x ∈ Val D A ]
-               ［ (f ⨾ g) ⨾ h ∣ d₀ ∣ ☐ ］◁ ↦* toState ((f ⨾ g) ⨾ h) x
-             × ［ f ⨾ (g ⨾ h) ∣ d₀ ∣ ☐ ］◁ ↦* toState (f ⨾ (g ⨾ h)) x
-      Loop₂⃖ {d₀} {b} (ts₁ , ts₂) with inspect⊎ (run ［ f ∣ b ∣ ☐ ］◁) (λ ())
-      Loop₂⃖ {d₀} {b} (ts₁ , ts₂) | inj₁ ((a₁ , rs₁) , eq₁) = a₁ ⃖ , ts₁ ++↦ rs₁' , ts₂ ++↦ rs₂'
-        where
-        rs₁' : ［ f ∣ b ∣ ☐⨾ g • ☐⨾ h • ☐ ］◁ ↦* ⟨ (f ⨾ g) ⨾ h ∣ a₁ ∣ ☐ ⟩◁
-        rs₁' = appendκ↦* rs₁ refl (☐⨾ g • ☐⨾ h • ☐) ++↦ ↦⃖₃ ∷ ↦⃖₃ ∷ ◾
+            req : len↦ rs ≡ len↦ rs₁' + len↦ rs₁''
+            req = proj₂ (deterministic*' rs₁' rs (is-stuck-toState _ _))
 
-        rs₂' : ［ f ∣ b ∣ ☐⨾ g ⨾ h • ☐ ］◁ ↦* ⟨ f ⨾ (g ⨾ h) ∣ a₁ ∣ ☐ ⟩◁
-        rs₂' = appendκ↦* rs₁ refl (☐⨾ g ⨾ h • ☐) ++↦ ↦⃖₃ ∷ ◾
-      Loop₂⃖ {d₀} {b} (ts₁ , ts₂) | inj₂ ((b₁ , rs₁) , eq₁) = Loop₁⃖ (ts₁ ++↦ rs₁' , ts₂ ++↦ rs₂')
-        where
-        rs₁' : ［ f ∣ b ∣ ☐⨾ g • (☐⨾ h • ☐) ］◁ ↦* ［ f ∣ b₁ ∣ ☐⨾ g • (☐⨾ h • ☐) ］▷
-        rs₁' = appendκ↦* rs₁ refl (☐⨾ g • ☐⨾ h • ☐)
+            le : len↦ rs₁'' <′ len↦ rs
+            le = subst (λ x → len↦ rs₁'' <′ x) (sym req) (s≤′s (n≤′m+n _ _))
+          loop⃗ rs refl | inj₂ ((d  , rsc) , eq) = lem
+            where
+            rs₁' : ［ g ∣ c ∣ ☐⨾ h • (f ⨾☐• ☐) ］▷ ↦* ［ f ⨾ g ⨾ h ∣ d ∣ ☐ ］▷
+            rs₁' = ↦⃗₇ ∷ appendκ↦* rsc refl (g ⨾☐• (f ⨾☐• ☐)) ++↦ ↦⃗₁₀ ∷ ↦⃗₁₀ ∷ ◾
 
-        rs₂' : ［ f ∣ b ∣ ☐⨾ g ⨾ h • ☐ ］◁ ↦* ［ f ∣ b₁ ∣ ☐⨾ g ⨾ h • ☐ ］▷
-        rs₂' = appendκ↦* rs₁ refl (☐⨾ g ⨾ h • ☐)
+            xeq : x ≡ d ⃗
+            xeq = toState≡₁ (sym (deterministic* rs₁' rs (λ ()) (is-stuck-toState _ _)))
 
-      Loop₃⃖ : {d₀ : ⟦ D ⟧} {c : ⟦ C ⟧}
-             → ［ (f ⨾ g) ⨾ h ∣ d₀ ∣ ☐ ］◁ ↦* ［ g ∣ c ∣ f ⨾☐• (☐⨾ h • ☐) ］▷
-             × ［ f ⨾ (g ⨾ h) ∣ d₀ ∣ ☐ ］◁ ↦* ［ g ∣ c ∣ ☐⨾ h • (f ⨾☐• ☐) ］▷
-             → Σ[ x ∈ Val D A ]
-               ［ (f ⨾ g) ⨾ h ∣ d₀ ∣ ☐ ］◁ ↦* toState ((f ⨾ g) ⨾ h) x
-             × ［ f ⨾ (g ⨾ h) ∣ d₀ ∣ ☐ ］◁ ↦* toState (f ⨾ (g ⨾ h)) x
-      Loop₃⃖ {d₀} {c} (ts₁ , ts₂) with inspect⊎ (run ⟨ h ∣ c ∣ ☐ ⟩▷) (λ ())
-      Loop₃⃖ {d₀} {c} (ts₁ , ts₂) | inj₁ ((c₁ , rs₁) , eq₁) = Loop₄⃖ (ts₁ ++↦ rs₁' , ts₂ ++↦ rs₂')
-        where
-        rs₁' : ［ g ∣ c ∣ f ⨾☐• (☐⨾ h • ☐) ］▷ ↦* ［ g ∣ c₁ ∣ f ⨾☐• (☐⨾ h • ☐) ］◁
-        rs₁' = (↦⃗₁₀ ∷ ↦⃗₇ ∷ ◾) ++↦ appendκ↦* rs₁ refl (f ⨾ g ⨾☐• ☐) ++↦ ↦⃖₇ ∷ ↦⃖₁₀ ∷ ◾
+            lem : ［ g ∣ c ∣ f ⨾☐• (☐⨾ h • ☐) ］▷ ↦* toState ((f ⨾ g) ⨾ h) x
+            lem rewrite xeq = (↦⃗₁₀ ∷ ↦⃗₇ ∷ ◾) ++↦ appendκ↦* rsc refl (f ⨾ g ⨾☐• ☐) ++↦ ↦⃗₁₀ ∷ ◾
+          loop⃖ : (rs : ⟨ h ∣ c ∣ g ⨾☐• (f ⨾☐• ☐) ⟩◁ ↦* toState (f ⨾ (g ⨾ h)) x) → len↦ rs ≡ n → ⟨ h ∣ c ∣ f ⨾ g ⨾☐• ☐ ⟩◁ ↦* toState ((f ⨾ g) ⨾ h) x
+          loop⃖ rs refl with inspect⊎ (run ［ g ∣ c ∣ ☐ ］◁) (λ ())
+          loop⃖ rs refl | inj₁ ((b  , rsc) , eq) = rs₂' ++↦ proj₂ (proj₁ (R (len↦ rs₁'') le) b) rs₁'' refl
+            where
+            rs₁' : ⟨ h ∣ c ∣ g ⨾☐• (f ⨾☐• ☐) ⟩◁ ↦* ⟨ g ∣ b ∣ ☐⨾ h • (f ⨾☐• ☐) ⟩◁
+            rs₁' = ↦⃖₇ ∷ appendκ↦* rsc refl (☐⨾ h • (f ⨾☐• ☐))
 
-        rs₂' : ［ g ∣ c ∣ ☐⨾ h • (f ⨾☐• ☐) ］▷ ↦* ［ g ∣ c₁ ∣ ☐⨾ h • (f ⨾☐• ☐) ］◁
-        rs₂' = ↦⃗₇ ∷ appendκ↦* rs₁ refl (g ⨾☐• (f ⨾☐• ☐)) ++↦ ↦⃖₇ ∷ ◾
-      Loop₃⃖ {d₀} {c} (ts₁ , ts₂) | inj₂ ((d₁ , rs₁) , eq₁) = d₁ ⃗ , ts₁ ++↦ rs₁' , ts₂ ++↦ rs₂'
-        where
-        rs₁' : ［ g ∣ c ∣ f ⨾☐• (☐⨾ h • ☐) ］▷ ↦* ［ (f ⨾ g) ⨾ h ∣ d₁ ∣ ☐ ］▷
-        rs₁' = (↦⃗₁₀ ∷ ↦⃗₇ ∷ ◾) ++↦ appendκ↦* rs₁ refl (f ⨾ g ⨾☐• ☐) ++↦ ↦⃗₁₀ ∷ ◾
+            rs₁'' : ⟨ g ∣ b ∣ ☐⨾ h • (f ⨾☐• ☐) ⟩◁ ↦* (toState (f ⨾ g ⨾ h) x)
+            rs₁'' = proj₁ (deterministic*' rs₁' rs (is-stuck-toState _ _))
 
-        rs₂' : ［ g ∣ c ∣ ☐⨾ h • (f ⨾☐• ☐) ］▷ ↦* ［ f ⨾ g ⨾ h ∣ d₁ ∣ ☐ ］▷
-        rs₂' = ↦⃗₇ ∷ appendκ↦* rs₁ refl (g ⨾☐• (f ⨾☐• ☐)) ++↦ ↦⃗₁₀ ∷ ↦⃗₁₀ ∷ ◾
+            rs₂' : ⟨ h ∣ c ∣ f ⨾ g ⨾☐• ☐ ⟩◁ ↦* ⟨ g ∣ b ∣ f ⨾☐• (☐⨾ h • ☐) ⟩◁
+            rs₂' = (↦⃖₇ ∷ ↦⃖₁₀ ∷ ◾) ++↦ appendκ↦* rsc refl (f ⨾☐• (☐⨾ h • ☐))
 
-      Loop₄⃖ : {d₀ : ⟦ D ⟧} {c : ⟦ C ⟧}
-             → ［ (f ⨾ g) ⨾ h ∣ d₀ ∣ ☐ ］◁ ↦* ［ g ∣ c ∣ f ⨾☐• (☐⨾ h • ☐) ］◁
-             × ［ f ⨾ (g ⨾ h) ∣ d₀ ∣ ☐ ］◁ ↦* ［ g ∣ c ∣ ☐⨾ h • (f ⨾☐• ☐) ］◁
-             → Σ[ x ∈ Val D A ]
-               ［ (f ⨾ g) ⨾ h ∣ d₀ ∣ ☐ ］◁ ↦* toState ((f ⨾ g) ⨾ h) x
-             × ［ f ⨾ (g ⨾ h) ∣ d₀ ∣ ☐ ］◁ ↦* toState (f ⨾ (g ⨾ h)) x
-      Loop₄⃖ {d₀} {c} (ts₁ , ts₂) with inspect⊎ (run ［ g ∣ c ∣ ☐ ］◁) (λ ())
-      Loop₄⃖ {d₀} {c} (ts₁ , ts₂) | inj₁ ((b₁ , rs₁) , eq₁) = Loop₂⃖ (ts₁ ++↦ rs₁' , ts₂ ++↦ rs₂')
-        where
-        rs₁' : ［ g ∣ c ∣ f ⨾☐• (☐⨾ h • ☐) ］◁ ↦* ［ f ∣ b₁ ∣ ☐⨾ g • (☐⨾ h • ☐) ］◁
-        rs₁' = appendκ↦* rs₁ refl (f ⨾☐• (☐⨾ h • ☐)) ++↦ ↦⃖₇ ∷ ◾
+            req : len↦ rs ≡ len↦ rs₁' + len↦ rs₁''
+            req = proj₂ (deterministic*' rs₁' rs (is-stuck-toState _ _))
 
-        rs₂' : ［ g ∣ c ∣ ☐⨾ h • (f ⨾☐• ☐) ］◁ ↦* ［ f ∣ b₁ ∣ ☐⨾ g ⨾ h • ☐ ］◁
-        rs₂' = appendκ↦* rs₁ refl (☐⨾ h • (f ⨾☐• ☐)) ++↦ ↦⃖₃ ∷ ↦⃖₇ ∷ ◾
-      Loop₄⃖ {d₀} {c} (ts₁ , ts₂) | inj₂ ((c₁ , rs₁) , eq₁) = Loop₃⃖ (ts₁ ++↦ rs₁' , ts₂ ++↦ rs₂')
-        where
-        rs₁' : ［ g ∣ c ∣ f ⨾☐• (☐⨾ h • ☐) ］◁ ↦* ［ g ∣ c₁ ∣ f ⨾☐• (☐⨾ h • ☐) ］▷
-        rs₁' = appendκ↦* rs₁ refl (f ⨾☐• (☐⨾ h • ☐))
+            le : len↦ rs₁'' <′ len↦ rs
+            le = subst (λ x → len↦ rs₁'' <′ x) (sym req) (s≤′s (n≤′m+n _ _))
+          loop⃖ rs refl | inj₂ ((c' , rsc) , eq) = rs₂' ++↦ proj₁ (proj₂ (R (len↦ rs₁'') le) c') rs₁'' refl
+            where
+            rs₁' : ⟨ h ∣ c ∣ g ⨾☐• (f ⨾☐• ☐) ⟩◁ ↦* ［ g ∣ c' ∣ ☐⨾ h • (f ⨾☐• ☐) ］▷
+            rs₁' = ↦⃖₇ ∷ appendκ↦* rsc refl (☐⨾ h • (f ⨾☐• ☐))
 
-        rs₂' : ［ g ∣ c ∣ ☐⨾ h • (f ⨾☐• ☐) ］◁ ↦* ［ g ∣ c₁ ∣ ☐⨾ h • (f ⨾☐• ☐) ］▷
-        rs₂' = appendκ↦* rs₁ refl (☐⨾ h • (f ⨾☐• ☐))
+            rs₁'' : ［ g ∣ c' ∣ ☐⨾ h • (f ⨾☐• ☐) ］▷ ↦* (toState (f ⨾ g ⨾ h) x)
+            rs₁'' = proj₁ (deterministic*' rs₁' rs (is-stuck-toState _ _))
+
+            rs₂' : ⟨ h ∣ c ∣ f ⨾ g ⨾☐• ☐ ⟩◁ ↦* ［ g ∣ c' ∣ f ⨾☐• (☐⨾ h • ☐) ］▷
+            rs₂' = (↦⃖₇ ∷ ↦⃖₁₀ ∷ ◾) ++↦ appendκ↦* rsc refl (f ⨾☐• (☐⨾ h • ☐))
+
+            req : len↦ rs ≡ len↦ rs₁' + len↦ rs₁''
+            req = proj₂ (deterministic*' rs₁' rs (is-stuck-toState _ _))
+
+            le : len↦ rs₁'' <′ len↦ rs
+            le = subst (λ x → len↦ rs₁'' <′ x) (sym req) (s≤′s (n≤′m+n _ _))
+
+  assoc : eval (f ⨾ g ⨾ h) ∼ eval ((f ⨾ g) ⨾ h)
+  assoc (a ⃗) with inspect⊎ (run ⟨ f ∣ a ∣ ☐ ⟩▷) (λ ())
+  assoc (a ⃗) | inj₁ ((a₁ , rs₁) , eq₁) = lem
+    where
+    rs₁' : ⟨ f ⨾ (g ⨾ h) ∣ a ∣ ☐ ⟩▷ ↦* ⟨ f ⨾ (g ⨾ h) ∣ a₁ ∣ ☐ ⟩◁
+    rs₁' = ↦⃗₃ ∷ appendκ↦* rs₁ refl (☐⨾ g ⨾ h • ☐) ++↦ ↦⃖₃ ∷ ◾
+
+    rs₂' : ⟨ (f ⨾ g) ⨾ h ∣ a ∣ ☐ ⟩▷ ↦* ⟨ (f ⨾ g) ⨾ h ∣ a₁ ∣ ☐ ⟩◁
+    rs₂' = (↦⃗₃ ∷ ↦⃗₃ ∷ ◾) ++↦ appendκ↦* rs₁ refl (☐⨾ g • ☐⨾ h • ☐) ++↦ ↦⃖₃ ∷ ↦⃖₃ ∷ ◾
+
+    lem : eval (f ⨾ g ⨾ h) (a ⃗) ≡ eval ((f ⨾ g) ⨾ h) (a ⃗)
+    lem rewrite eval-toState₁ rs₁' | eval-toState₁ rs₂' = refl
+  assoc (a ⃗) | inj₂ ((b₁ , rs₁) , eq₁) = sym (eval-toState₁ rs₂'')
+    where
+    rs : ⟨ f ⨾ (g ⨾ h) ∣ a ∣ ☐ ⟩▷ ↦* toState (f ⨾ g ⨾ h) (eval (f ⨾ g ⨾ h) (a ⃗))
+    rs = getₜᵣ⃗ (f ⨾ g ⨾ h) refl
+    
+    rs₁' : ⟨ f ⨾ (g ⨾ h) ∣ a ∣ ☐ ⟩▷ ↦* ［ f ∣ b₁ ∣ ☐⨾ g ⨾ h • ☐ ］▷
+    rs₁' = ↦⃗₃ ∷ appendκ↦* rs₁ refl (☐⨾ g ⨾ h • ☐)
+
+    rs₁'' : ［ f ∣ b₁ ∣ ☐⨾ g ⨾ h • ☐ ］▷ ↦* toState (f ⨾ g ⨾ h) (eval (f ⨾ g ⨾ h) (a ⃗))
+    rs₁'' = proj₁ (deterministic*' rs₁' rs (is-stuck-toState _ _))
+
+    rs₂' : ⟨ (f ⨾ g) ⨾ h ∣ a ∣ ☐ ⟩▷ ↦* ［ f ∣ b₁ ∣ ☐⨾ g • ☐⨾ h • ☐ ］▷
+    rs₂' = (↦⃗₃ ∷ ↦⃗₃ ∷ ◾) ++↦ appendκ↦* rs₁ refl (☐⨾ g • ☐⨾ h • ☐)
+
+    rs₂'' : ⟨ (f ⨾ g) ⨾ h ∣ a ∣ ☐ ⟩▷ ↦* toState ((f ⨾ g) ⨾ h) (eval (f ⨾ g ⨾ h) (a ⃗))
+    rs₂'' = rs₂' ++↦ proj₁ ((proj₁ (loop (len↦ rs₁''))) b₁) rs₁'' refl
+  assoc (d ⃖) with inspect⊎ (run ［ h ∣ d ∣ ☐ ］◁) (λ ())
+  assoc (d ⃖) | inj₁ ((c₁ , rs₁) , eq₁) = sym (eval-toState₂ rs₂'')
+    where
+    rs : ［ f ⨾ (g ⨾ h) ∣ d ∣ ☐ ］◁ ↦* toState (f ⨾ g ⨾ h) (eval (f ⨾ g ⨾ h) (d ⃖))
+    rs = getₜᵣ⃖ (f ⨾ g ⨾ h) refl
+    
+    rs₁' : ［ f ⨾ (g ⨾ h) ∣ d ∣ ☐ ］◁ ↦* ⟨ h ∣ c₁ ∣ g ⨾☐• (f ⨾☐• ☐) ⟩◁
+    rs₁' = (↦⃖₁₀ ∷ ↦⃖₁₀ ∷ ◾) ++↦ appendκ↦* rs₁ refl (g ⨾☐• (f ⨾☐• ☐))
+
+    rs₁'' : ⟨ h ∣ c₁ ∣ g ⨾☐• (f ⨾☐• ☐) ⟩◁ ↦* toState (f ⨾ g ⨾ h) (eval (f ⨾ g ⨾ h) (d ⃖))
+    rs₁'' = proj₁ (deterministic*' rs₁' rs (is-stuck-toState _ _))
+
+    rs₂' : ［ (f ⨾ g) ⨾ h ∣ d ∣ ☐ ］◁ ↦* ⟨ h ∣ c₁ ∣ f ⨾ g ⨾☐• ☐ ⟩◁
+    rs₂' = (↦⃖₁₀ ∷ ◾) ++↦ appendκ↦* rs₁ refl ((f ⨾ g) ⨾☐• ☐)
+
+    rs₂'' : ［ (f ⨾ g) ⨾ h ∣ d ∣ ☐ ］◁ ↦* toState ((f ⨾ g) ⨾ h) (eval (f ⨾ g ⨾ h) (d ⃖))
+    rs₂'' = rs₂' ++↦ proj₂ ((proj₂ (loop (len↦ rs₁''))) c₁) rs₁'' refl
+  assoc (d ⃖) | inj₂ ((d₁ , rs₁) , eq₁) = lem
+    where
+    rs₁' : ［ f ⨾ (g ⨾ h) ∣ d ∣ ☐ ］◁ ↦* ［ f ⨾ (g ⨾ h) ∣ d₁ ∣ ☐ ］▷
+    rs₁' = (↦⃖₁₀ ∷ ↦⃖₁₀ ∷ ◾) ++↦ appendκ↦* rs₁ refl (g ⨾☐• (f ⨾☐• ☐)) ++↦ ↦⃗₁₀ ∷ ↦⃗₁₀ ∷ ◾
+
+    rs₂' : ［ (f ⨾ g) ⨾ h ∣ d ∣ ☐ ］◁ ↦* ［ (f ⨾ g) ⨾ h ∣ d₁ ∣ ☐ ］▷
+    rs₂' = (↦⃖₁₀ ∷ ◾) ++↦ appendκ↦* rs₁ refl ((f ⨾ g) ⨾☐• ☐) ++↦ ↦⃗₁₀ ∷ ◾
+
+    lem : eval (f ⨾ g ⨾ h) (d ⃖) ≡ eval ((f ⨾ g) ⨾ h) (d ⃖)
+    lem rewrite eval-toState₂ rs₁' | eval-toState₂ rs₂' = refl
 
 open assoc public
 
 module homomorphism {A₁ B₁ A₂ B₂ A₃ B₃} {f : A₁ ↔ A₂}  {g : B₁ ↔ B₂} {h : A₂ ↔ A₃} {i : B₂ ↔ B₃} where
-  mutual
-    homomorphism : eval ((f ⨾ h) ⊕ (g ⨾ i)) ∼ eval (f ⊕ g ⨾ h ⊕ i)
-    homomorphism (inj₁ a ⃗) with inspect⊎ (run ⟨ f ∣ a ∣ ☐ ⟩▷) (λ ())
-    homomorphism (inj₁ a ⃗) | inj₁ ((a₁ , rs) , eq) = lem
+  private
+    P₁ : ∀ {x} ℕ → Set _
+    P₁ {x} n = ∀ a₂ → ((rs : ［ f ∣ a₂ ∣ ☐⨾ h • (☐⊕ g ⨾ i • ☐) ］▷ ↦* toState ((f ⨾ h) ⊕ (g ⨾ i)) x) → len↦ rs ≡ n → ［ f  ∣ a₂ ∣ ☐⊕ g • ☐⨾ h ⊕ i • ☐ ］▷ ↦* toState (f ⊕ g ⨾ h ⊕ i) x)
+                    × ((rs : ⟨ h ∣ a₂ ∣ f ⨾☐• (☐⊕ (g ⨾ i) • ☐) ⟩◁ ↦* toState ((f ⨾ h) ⊕ (g ⨾ i)) x) → len↦ rs ≡ n → ⟨ h ∣ a₂ ∣ ☐⊕ i • (f ⊕ g ⨾☐• ☐) ⟩◁ ↦* toState (f ⊕ g ⨾ h ⊕ i) x)
+    P₂ : ∀ {x} ℕ → Set _
+    P₂ {x} n = ∀ b₂ → ((rs : ［ g ∣ b₂ ∣ ☐⨾ i • (f ⨾ h ⊕☐• ☐) ］▷ ↦* toState ((f ⨾ h) ⊕ (g ⨾ i)) x) → len↦ rs ≡ n → ［ g ∣ b₂ ∣ f ⊕☐• (☐⨾ h ⊕ i • ☐) ］▷ ↦* toState (f ⊕ g ⨾ h ⊕ i) x)
+                    × ((rs : ⟨ i ∣ b₂ ∣ g ⨾☐• (f ⨾ h ⊕☐• ☐) ⟩◁ ↦* toState ((f ⨾ h) ⊕ (g ⨾ i)) x) → len↦ rs ≡ n → ⟨ i ∣ b₂ ∣ h ⊕☐• (f ⊕ g ⨾☐• ☐) ⟩◁ ↦* toState (f ⊕ g ⨾ h ⊕ i) x)
+    
+    P : ∀ {x} ℕ → Set _
+    P {x} n = P₁ {x} n × P₂ {x} n
+                     
+    loop : ∀ {x} (n : ℕ) → P {x} n
+    loop {x} = <′-rec (λ n → P n) loop-rec
       where
-      rs₁' : ⟨ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₁ a ∣ ☐ ⟩▷ ↦* ⟨ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₁ a₁ ∣ ☐ ⟩◁
-      rs₁' = (↦⃗₄ ∷ ↦⃗₃ ∷ ◾) ++↦ appendκ↦* rs refl (☐⨾ h • (☐⊕ g ⨾ i • ☐)) ++↦ ↦⃖₃ ∷ ↦⃖₄ ∷ ◾
+      loop-rec : (n : ℕ) → (∀ m → m <′ n → P m) → P n
+      loop-rec n R = loop₁ , loop₂
+        where
+        loop₁ : P₁ n
+        loop₁ a₂ = loop⃗ , loop⃖
+          where
+          loop⃗ : (rs : ［ f ∣ a₂ ∣ ☐⨾ h • (☐⊕ g ⨾ i • ☐) ］▷ ↦* toState ((f ⨾ h) ⊕ (g ⨾ i)) x) → len↦ rs ≡ n → ［ f  ∣ a₂ ∣ ☐⊕ g • ☐⨾ h ⊕ i • ☐ ］▷ ↦* toState (f ⊕ g ⨾ h ⊕ i) x
+          loop⃗ rs refl with inspect⊎ (run ⟨ h ∣ a₂ ∣ ☐ ⟩▷) (λ ())
+          loop⃗ rs refl | inj₁ ((a₂' , rsa) , _) = rs₂' ++↦ proj₂ (proj₁ (R (len↦ rs₁'') le) a₂') rs₁'' refl
+            where
+            rs₁' : ［ f ∣ a₂ ∣ ☐⨾ h • (☐⊕ g ⨾ i • ☐) ］▷ ↦* ⟨ h ∣ a₂' ∣ f ⨾☐• (☐⊕ (g ⨾ i) • ☐) ⟩◁
+            rs₁' = ↦⃗₇ ∷ appendκ↦* rsa refl (f ⨾☐• (☐⊕ g ⨾ i • ☐))
 
-      rs₂' : ⟨ f ⊕ g ⨾ h ⊕ i ∣ inj₁ a ∣ ☐ ⟩▷ ↦* ⟨ f ⊕ g ⨾ h ⊕ i ∣ inj₁ a₁ ∣ ☐ ⟩◁
-      rs₂' = (↦⃗₃ ∷ ↦⃗₄ ∷ ◾) ++↦ appendκ↦* rs refl (☐⊕ g • (☐⨾ h ⊕ i • ☐)) ++↦ ↦⃖₄ ∷ ↦⃖₃ ∷ ◾
-      
-      lem : eval ((f ⨾ h) ⊕ (g ⨾ i)) (inj₁ a ⃗) ≡ eval (f ⊕ g ⨾ h ⊕ i) (inj₁ a ⃗)
-      lem rewrite eval-toState₁ rs₁' | eval-toState₁ rs₂' = refl
-    homomorphism (inj₁ a ⃗) | inj₂ ((a₂ , rs) , eq) = lem
-      where
-      rs₁' : ⟨ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₁ a ∣ ☐ ⟩▷ ↦* ［ f ∣ a₂ ∣ ☐⨾ h • (☐⊕ g ⨾ i • ☐) ］▷
-      rs₁' = (↦⃗₄ ∷ ↦⃗₃ ∷ ◾) ++↦ appendκ↦* rs refl (☐⨾ h • (☐⊕ g ⨾ i • ☐))
+            rs₁'' : ⟨ h ∣ a₂' ∣ f ⨾☐• (☐⊕ (g ⨾ i) • ☐) ⟩◁ ↦* toState ((f ⨾ h) ⊕ (g ⨾ i)) x
+            rs₁'' = proj₁ (deterministic*' rs₁' rs (is-stuck-toState _ _))
 
-      rs₂' : ⟨ f ⊕ g ⨾ h ⊕ i ∣ inj₁ a ∣ ☐ ⟩▷ ↦* ［ f ⊕ g ∣ inj₁ a₂ ∣ ☐⨾ h ⊕ i • ☐ ］▷
-      rs₂' = (↦⃗₃ ∷ ↦⃗₄ ∷ ◾) ++↦ appendκ↦* rs refl (☐⊕ g • (☐⨾ h ⊕ i • ☐)) ++↦ ↦⃗₁₁ ∷ ◾
-      
-      lem : eval ((f ⨾ h) ⊕ (g ⨾ i)) (inj₁ a ⃗) ≡ eval (f ⊕ g ⨾ h ⊕ i) (inj₁ a ⃗)
-      lem with Loop₁⃗ (rs₁' , rs₂')
-      ... | (x , rs₁'' , rs₂'') rewrite eval-toState₁ rs₁'' | eval-toState₁ rs₂'' = refl
-    homomorphism (inj₂ b ⃗) with inspect⊎ (run ⟨ g ∣ b ∣ ☐ ⟩▷) (λ ())
-    homomorphism (inj₂ b ⃗) | inj₁ ((b₁ , rs) , eq) = lem
-      where
-      rs₁' : ⟨ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₂ b ∣ ☐ ⟩▷ ↦* ⟨ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₂ b₁ ∣ ☐ ⟩◁
-      rs₁' = (↦⃗₅ ∷ ↦⃗₃ ∷ ◾) ++↦ appendκ↦* rs refl (☐⨾ i • (f ⨾ h ⊕☐• ☐)) ++↦ ↦⃖₃ ∷ ↦⃖₅ ∷ ◾
+            rs₂' : ［ f  ∣ a₂ ∣ ☐⊕ g • ☐⨾ h ⊕ i • ☐ ］▷ ↦* ⟨ h ∣ a₂' ∣ ☐⊕ i • (f ⊕ g ⨾☐• ☐) ⟩◁
+            rs₂' = (↦⃗₁₁ ∷ ↦⃗₇ ∷ ↦⃗₄ ∷ ◾) ++↦ appendκ↦* rsa refl (☐⊕ i • (f ⊕ g ⨾☐• ☐))
 
-      rs₂' : ⟨ f ⊕ g ⨾ h ⊕ i ∣ inj₂ b ∣ ☐ ⟩▷ ↦* ⟨ f ⊕ g ⨾ h ⊕ i ∣ inj₂ b₁ ∣ ☐ ⟩◁
-      rs₂' = (↦⃗₃ ∷ ↦⃗₅ ∷ ◾) ++↦ appendκ↦* rs refl (f ⊕☐• (☐⨾ h ⊕ i • ☐)) ++↦ ↦⃖₅ ∷ ↦⃖₃ ∷ ◾
-      
-      lem : eval ((f ⨾ h) ⊕ (g ⨾ i)) (inj₂ b ⃗) ≡ eval (f ⊕ g ⨾ h ⊕ i) (inj₂ b ⃗)
-      lem rewrite eval-toState₁ rs₁' | eval-toState₁ rs₂' = refl
-    homomorphism (inj₂ b ⃗) | inj₂ ((b₂ , rs) , eq) = lem
-      where
-      rs₁' : ⟨ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₂ b ∣ ☐ ⟩▷ ↦* ［ g ∣ b₂ ∣ ☐⨾ i • (f ⨾ h ⊕☐• ☐) ］▷
-      rs₁' = (↦⃗₅ ∷ ↦⃗₃ ∷ ◾) ++↦ appendκ↦* rs refl (☐⨾ i • (f ⨾ h ⊕☐• ☐))
+            req : len↦ rs ≡ len↦ rs₁' + len↦ rs₁''
+            req = proj₂ (deterministic*' rs₁' rs (is-stuck-toState _ _))
 
-      rs₂' : ⟨ f ⊕ g ⨾ h ⊕ i ∣ inj₂ b ∣ ☐ ⟩▷ ↦* ［ f ⊕ g ∣ inj₂ b₂ ∣ ☐⨾ h ⊕ i • ☐ ］▷
-      rs₂' = (↦⃗₃ ∷ ↦⃗₅ ∷ ◾) ++↦ appendκ↦* rs refl (f ⊕☐• (☐⨾ h ⊕ i • ☐)) ++↦ ↦⃗₁₂ ∷ ◾
-      
-      lem : eval ((f ⨾ h) ⊕ (g ⨾ i)) (inj₂ b ⃗) ≡ eval (f ⊕ g ⨾ h ⊕ i) (inj₂ b ⃗)
-      lem with Loop₃⃗ (rs₁' , rs₂')
-      ... | (x , rs₁'' , rs₂'') rewrite eval-toState₁ rs₁'' | eval-toState₁ rs₂'' = refl
-    homomorphism (inj₁ a ⃖) with inspect⊎ (run ［ h ∣ a ∣ ☐ ］◁) (λ ())
-    homomorphism (inj₁ a ⃖) | inj₁ ((a₂ , rs) , eq) = lem
-      where
-      rs₁' : ［ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₁ a ∣ ☐ ］◁ ↦* ［ f ∣ a₂ ∣ ☐⨾ h • (☐⊕ g ⨾ i • ☐) ］◁
-      rs₁' = (↦⃖₁₁ ∷ ↦⃖₁₀ ∷ ◾) ++↦ appendκ↦* rs refl (f ⨾☐• (☐⊕ g ⨾ i • ☐)) ++↦ ↦⃖₇ ∷ ◾
+            le : len↦ rs₁'' <′ len↦ rs
+            le = subst (λ x → len↦ rs₁'' <′ x) (sym req) (s≤′s (n≤′m+n _ _))
+          loop⃗ rs refl | inj₂ ((a₃  , rsa) , _) = lem
+            where
+            rs₁' : ［ f ∣ a₂ ∣ ☐⨾ h • (☐⊕ g ⨾ i • ☐) ］▷ ↦* ［ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₁ a₃ ∣ ☐ ］▷
+            rs₁' = ↦⃗₇ ∷ appendκ↦* rsa refl (f ⨾☐• (☐⊕ g ⨾ i • ☐)) ++↦ ↦⃗₁₀ ∷ ↦⃗₁₁ ∷ ◾
 
-      rs₂' : ［ f ⊕ g ⨾ h ⊕ i ∣ inj₁ a ∣ ☐ ］◁ ↦* ［ f ⊕ g ∣ inj₁ a₂ ∣ ☐⨾ h ⊕ i • ☐ ］◁
-      rs₂' = (↦⃖₁₀ ∷ ↦⃖₁₁ ∷ ◾) ++↦ appendκ↦* rs refl (☐⊕ i • (f ⊕ g ⨾☐• ☐)) ++↦ ↦⃖₄ ∷ ↦⃖₇ ∷ ◾
+            xeq : x ≡ inj₁ a₃ ⃗
+            xeq = toState≡₁ (deterministic* rs rs₁' (is-stuck-toState _ _) (λ ()))
 
-      lem : eval ((f ⨾ h) ⊕ (g ⨾ i)) (inj₁ a ⃖) ≡ eval (f ⊕ g ⨾ h ⊕ i) (inj₁ a ⃖)
-      lem with Loop₂⃖ (rs₁' , rs₂')
-      ... | (x , rs₁'' , rs₂'') rewrite eval-toState₂ rs₁'' | eval-toState₂ rs₂'' = refl
-    homomorphism (inj₁ a ⃖) | inj₂ ((a₃ , rs) , eq) = lem
-      where
-      rs₁' : ［ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₁ a ∣ ☐ ］◁ ↦* ［ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₁ a₃ ∣ ☐ ］▷
-      rs₁' = (↦⃖₁₁ ∷ ↦⃖₁₀ ∷ ◾) ++↦ appendκ↦* rs refl (f ⨾☐• (☐⊕ g ⨾ i • ☐)) ++↦ ↦⃗₁₀ ∷ ↦⃗₁₁ ∷ ◾
+            lem : ［ f ∣ a₂ ∣ ☐⊕ g • (☐⨾ h ⊕ i • ☐) ］▷ ↦* toState (f ⊕ g ⨾ h ⊕ i) x
+            lem rewrite xeq = (↦⃗₁₁ ∷ ↦⃗₇ ∷ ↦⃗₄ ∷ ◾) ++↦ appendκ↦* rsa refl (☐⊕ i • (f ⊕ g ⨾☐• ☐)) ++↦ ↦⃗₁₁ ∷ ↦⃗₁₀ ∷ ◾
+          loop⃖ : (rs : ⟨ h ∣ a₂ ∣ f ⨾☐• (☐⊕ (g ⨾ i) • ☐) ⟩◁ ↦* toState ((f ⨾ h) ⊕ (g ⨾ i)) x) → len↦ rs ≡ n → ⟨ h ∣ a₂ ∣ ☐⊕ i • (f ⊕ g ⨾☐• ☐) ⟩◁ ↦* toState (f ⊕ g ⨾ h ⊕ i) x
+          loop⃖ rs refl with inspect⊎ (run ［ f ∣ a₂ ∣ ☐ ］◁) (λ ())
+          loop⃖ rs refl | inj₁ ((a₁   , rsa) , _) = lem
+            where
+            rs₁' : ⟨ h ∣ a₂ ∣ f ⨾☐• (☐⊕ (g ⨾ i) • ☐) ⟩◁ ↦* ⟨ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₁ a₁ ∣ ☐ ⟩◁
+            rs₁' = ↦⃖₇ ∷ appendκ↦* rsa refl (☐⨾ h • (☐⊕ g ⨾ i • ☐)) ++↦ ↦⃖₃ ∷ ↦⃖₄ ∷ ◾
 
-      rs₂' : ［ f ⊕ g ⨾ h ⊕ i ∣ inj₁ a ∣ ☐ ］◁ ↦* ［ f ⊕ g ⨾ h ⊕ i ∣ inj₁ a₃ ∣ ☐ ］▷
-      rs₂' = (↦⃖₁₀ ∷ ↦⃖₁₁ ∷ ◾) ++↦ appendκ↦* rs refl (☐⊕ i • (f ⊕ g ⨾☐• ☐)) ++↦ ↦⃗₁₁ ∷ ↦⃗₁₀ ∷ ◾
-      
-      lem : eval ((f ⨾ h) ⊕ (g ⨾ i)) (inj₁ a ⃖) ≡ eval (f ⊕ g ⨾ h ⊕ i) (inj₁ a ⃖)
-      lem rewrite eval-toState₂ rs₁' | eval-toState₂ rs₂' = refl
-    homomorphism (inj₂ b ⃖) with inspect⊎ (run ［ i ∣ b ∣ ☐ ］◁) (λ ())
-    homomorphism (inj₂ b ⃖) | inj₁ ((b₂ , rs) , eq) = lem
-      where
-      rs₁' : ［ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₂ b ∣ ☐ ］◁ ↦* ［ g ∣ b₂ ∣ ☐⨾ i • (f ⨾ h ⊕☐• ☐) ］◁
-      rs₁' = (↦⃖₁₂ ∷ ↦⃖₁₀ ∷ ◾) ++↦ appendκ↦* rs refl (g ⨾☐• (f ⨾ h ⊕☐• ☐)) ++↦ ↦⃖₇ ∷ ◾
+            xeq : x ≡ inj₁ a₁ ⃖
+            xeq = toState≡₂ (deterministic* rs rs₁' (is-stuck-toState _ _) (λ ()))
 
-      rs₂' : ［ f ⊕ g ⨾ h ⊕ i ∣ inj₂ b ∣ ☐ ］◁ ↦* ［ f ⊕ g ∣ inj₂ b₂ ∣ ☐⨾ h ⊕ i • ☐ ］◁
-      rs₂' = (↦⃖₁₀ ∷ ↦⃖₁₂ ∷ ◾) ++↦ appendκ↦* rs refl (h ⊕☐• (f ⊕ g ⨾☐• ☐)) ++↦ ↦⃖₅ ∷ ↦⃖₇ ∷ ◾
+            lem : ⟨ h ∣ a₂ ∣ ☐⊕ i • ((f ⊕ g) ⨾☐• ☐) ⟩◁ ↦* toState (f ⊕ g ⨾ h ⊕ i) x
+            lem rewrite xeq = (↦⃖₄ ∷ ↦⃖₇ ∷ ↦⃖₁₁ ∷ ◾) ++↦ appendκ↦* rsa refl (☐⊕ g • (☐⨾ h ⊕ i • ☐)) ++↦ ↦⃖₄ ∷ ↦⃖₃ ∷ ◾
+          loop⃖ rs refl | inj₂ ((a₂'  , rsa) , _) = rs₂' ++↦ proj₁ (proj₁ (R (len↦ rs₁'') le) a₂') rs₁'' refl
+            where
+            rs₁' : ⟨ h ∣ a₂ ∣ f ⨾☐• (☐⊕ (g ⨾ i) • ☐) ⟩◁ ↦* ［ f ∣ a₂' ∣ ☐⨾ h • (☐⊕ g ⨾ i • ☐) ］▷
+            rs₁' = ↦⃖₇ ∷ appendκ↦* rsa refl (☐⨾ h • (☐⊕ g ⨾ i • ☐))
 
-      lem : eval ((f ⨾ h) ⊕ (g ⨾ i)) (inj₂ b ⃖) ≡ eval (f ⊕ g ⨾ h ⊕ i) (inj₂ b ⃖)
-      lem with Loop₄⃖ (rs₁' , rs₂')
-      ... | (x , rs₁'' , rs₂'') rewrite eval-toState₂ rs₁'' | eval-toState₂ rs₂'' = refl
-    homomorphism (inj₂ b ⃖) | inj₂ ((b₃ , rs) , eq) = lem
-      where
-      rs₁' : ［ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₂ b ∣ ☐ ］◁ ↦* ［ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₂ b₃ ∣ ☐ ］▷
-      rs₁' = (↦⃖₁₂ ∷ ↦⃖₁₀ ∷ ◾) ++↦ appendκ↦* rs refl (g ⨾☐• (f ⨾ h ⊕☐• ☐)) ++↦ ↦⃗₁₀ ∷ ↦⃗₁₂ ∷ ◾
+            rs₁'' : ［ f ∣ a₂' ∣ ☐⨾ h • (☐⊕ g ⨾ i • ☐) ］▷ ↦* toState ((f ⨾ h) ⊕ (g ⨾ i)) x
+            rs₁'' = proj₁ (deterministic*' rs₁' rs (is-stuck-toState _ _))
 
-      rs₂' : ［ f ⊕ g ⨾ h ⊕ i ∣ inj₂ b ∣ ☐ ］◁ ↦* ［ f ⊕ g ⨾ h ⊕ i ∣ inj₂ b₃ ∣ ☐ ］▷
-      rs₂' = (↦⃖₁₀ ∷ ↦⃖₁₂ ∷ ◾) ++↦ appendκ↦* rs refl (h ⊕☐• (f ⊕ g ⨾☐• ☐)) ++↦ ↦⃗₁₂ ∷ ↦⃗₁₀ ∷ ◾
+            rs₂' : ⟨ h ∣ a₂ ∣ ☐⊕ i • ((f ⊕ g) ⨾☐• ☐) ⟩◁ ↦* ［ f  ∣ a₂' ∣ ☐⊕ g • ☐⨾ h ⊕ i • ☐ ］▷
+            rs₂' = (↦⃖₄ ∷ ↦⃖₇ ∷ ↦⃖₁₁ ∷ ◾) ++↦ appendκ↦* rsa refl (☐⊕ g • (☐⨾ h ⊕ i • ☐))
 
-      lem : eval ((f ⨾ h) ⊕ (g ⨾ i)) (inj₂ b ⃖) ≡ eval (f ⊕ g ⨾ h ⊕ i) (inj₂ b ⃖)
-      lem rewrite eval-toState₂ rs₁' | eval-toState₂ rs₂' = refl
+            req : len↦ rs ≡ len↦ rs₁' + len↦ rs₁''
+            req = proj₂ (deterministic*' rs₁' rs (is-stuck-toState _ _))
 
-    private
-      {-# TERMINATING #-}
-      Loop₁⃗ : {a₁ : ⟦ A₁ ⟧} {a₂ : ⟦ A₂ ⟧}
-             → ⟨ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₁ a₁ ∣ ☐ ⟩▷ ↦* ［ f ∣ a₂ ∣ ☐⨾ h • (☐⊕ g ⨾ i • ☐) ］▷
-             × ⟨ f ⊕ g ⨾ h ⊕ i ∣ inj₁ a₁ ∣ ☐ ⟩▷ ↦* ［ f ⊕ g ∣ inj₁ a₂ ∣ ☐⨾ h ⊕ i • ☐ ］▷
-             → Σ[ x ∈ Val (A₃ +ᵤ B₃) (A₁ +ᵤ B₁) ]
-               ⟨ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₁ a₁ ∣ ☐ ⟩▷ ↦* toState ((f ⨾ h) ⊕ (g ⨾ i)) x
-             × ⟨ f ⊕ g ⨾ h ⊕ i ∣ inj₁ a₁ ∣ ☐ ⟩▷ ↦* toState (f ⊕ g ⨾ h ⊕ i) x
-      Loop₁⃗ {a₁} {a₂} (ts₁ , ts₂) with inspect⊎ (run ⟨ h ∣ a₂ ∣ ☐ ⟩▷) (λ ())
-      Loop₁⃗ {a₁} {a₂} (ts₁ , ts₂) | inj₁ ((a₂' , rs) , eq) =
-             Loop₂⃗ ( ts₁ ++↦ ↦⃗₇ ∷ appendκ↦* rs refl (f ⨾☐• (☐⊕ g ⨾ i • ☐)) ++↦ ↦⃖₇ ∷ ◾
-                    , ts₂ ++↦ (↦⃗₇ ∷ ↦⃗₄ ∷ ◾) ++↦ appendκ↦* rs refl (☐⊕ i • (f ⊕ g ⨾☐• ☐)) ++↦ ↦⃖₄ ∷ ↦⃖₇ ∷ ◾)
-      Loop₁⃗ {a₁} {a₂} (ts₁ , ts₂) | inj₂ ((a₃  , rs) , eq) =
-             inj₁ a₃ ⃗ , ts₁ ++↦ ↦⃗₇ ∷ appendκ↦* rs refl (f ⨾☐• (☐⊕ g ⨾ i • ☐)) ++↦ ↦⃗₁₀ ∷ ↦⃗₁₁ ∷ ◾
-                       , ts₂ ++↦ (↦⃗₇ ∷ ↦⃗₄ ∷ ◾) ++↦ appendκ↦* rs refl (☐⊕ i • (f ⊕ g ⨾☐• ☐)) ++↦ ↦⃗₁₁ ∷ ↦⃗₁₀ ∷ ◾
+            le : len↦ rs₁'' <′ len↦ rs
+            le = subst (λ x → len↦ rs₁'' <′ x) (sym req) (s≤′s (n≤′m+n _ _))
+        loop₂ : P₂ n
+        loop₂ b₂ = loop⃗ , loop⃖
+          where
+          loop⃗ : (rs : ［ g ∣ b₂ ∣ ☐⨾ i • (f ⨾ h ⊕☐• ☐) ］▷ ↦* toState ((f ⨾ h) ⊕ (g ⨾ i)) x) → len↦ rs ≡ n → ［ g ∣ b₂ ∣ f ⊕☐• (☐⨾ h ⊕ i • ☐) ］▷ ↦* toState (f ⊕ g ⨾ h ⊕ i) x
+          loop⃗ rs refl with inspect⊎ (run ⟨ i ∣ b₂ ∣ ☐ ⟩▷) (λ ())
+          loop⃗ rs refl | inj₁ ((b₂' , rsb) , _) = rs₂' ++↦ proj₂ (proj₂ (R (len↦ rs₁'') le) b₂') rs₁'' refl
+            where
+            rs₁' : ［ g ∣ b₂ ∣ ☐⨾ i • (f ⨾ h ⊕☐• ☐) ］▷ ↦* ⟨ i ∣ b₂' ∣ g ⨾☐• (f ⨾ h ⊕☐• ☐) ⟩◁
+            rs₁' = ↦⃗₇ ∷ appendκ↦* rsb refl (g ⨾☐• (f ⨾ h ⊕☐• ☐))
 
-      Loop₂⃗ : {a₁ : ⟦ A₁ ⟧} {a₂ : ⟦ A₂ ⟧}
-             → ⟨ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₁ a₁ ∣ ☐ ⟩▷ ↦* ［ f ∣ a₂ ∣ ☐⨾ h • (☐⊕ g ⨾ i • ☐) ］◁
-             × ⟨ f ⊕ g ⨾ h ⊕ i ∣ inj₁ a₁ ∣ ☐ ⟩▷ ↦* ［ f ⊕ g ∣ inj₁ a₂ ∣ ☐⨾ h ⊕ i • ☐ ］◁
-             → Σ[ x ∈ Val (A₃ +ᵤ B₃) (A₁ +ᵤ B₁) ]
-               ⟨ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₁ a₁ ∣ ☐ ⟩▷ ↦* toState ((f ⨾ h) ⊕ (g ⨾ i)) x
-             × ⟨ f ⊕ g ⨾ h ⊕ i ∣ inj₁ a₁ ∣ ☐ ⟩▷ ↦* toState (f ⊕ g ⨾ h ⊕ i) x
-      Loop₂⃗ {a₁} {a₂} (ts₁ , ts₂) with inspect⊎ (run ［ f ∣ a₂ ∣ ☐ ］◁) (λ ())
-      Loop₂⃗ {a₁} {a₂} (ts₁ , ts₂) | inj₁ ((a₁' , rs) , eq) =
-             inj₁ a₁' ⃖ , ts₁ ++↦ appendκ↦* rs refl (☐⨾ h • (☐⊕ g ⨾ i • ☐)) ++↦ ↦⃖₃ ∷ ↦⃖₄ ∷ ◾
-                        , ts₂ ++↦ ↦⃖₁₁ ∷ appendκ↦* rs refl (☐⊕ g • (☐⨾ h ⊕ i • ☐)) ++↦ ↦⃖₄ ∷ ↦⃖₃ ∷ ◾
-      Loop₂⃗ {a₁} {a₂} (ts₁ , ts₂) | inj₂ ((a₂' , rs) , eq) =
-             Loop₁⃗ ( ts₁ ++↦ appendκ↦* rs refl (☐⨾ h • (☐⊕ g ⨾ i • ☐))
-                    , ts₂ ++↦ ↦⃖₁₁ ∷ appendκ↦* rs refl (☐⊕ g • (☐⨾ h ⊕ i • ☐)) ++↦ ↦⃗₁₁ ∷ ◾)
+            rs₁'' : ⟨ i ∣ b₂' ∣ g ⨾☐• (f ⨾ h ⊕☐• ☐) ⟩◁ ↦* toState ((f ⨾ h) ⊕ (g ⨾ i)) x
+            rs₁'' = proj₁ (deterministic*' rs₁' rs (is-stuck-toState _ _))
 
-      Loop₃⃗ : {b₁ : ⟦ B₁ ⟧} {b₂ : ⟦ B₂ ⟧}
-             → ⟨ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₂ b₁ ∣ ☐ ⟩▷ ↦* ［ g ∣ b₂ ∣ ☐⨾ i • (f ⨾ h ⊕☐• ☐) ］▷
-             × ⟨ f ⊕ g ⨾ h ⊕ i ∣ inj₂ b₁ ∣ ☐ ⟩▷ ↦* ［ f ⊕ g ∣ inj₂ b₂ ∣ ☐⨾ h ⊕ i • ☐ ］▷
-             → Σ[ x ∈ Val (A₃ +ᵤ B₃) (A₁ +ᵤ B₁) ]
-               ⟨ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₂ b₁ ∣ ☐ ⟩▷ ↦* toState ((f ⨾ h) ⊕ (g ⨾ i)) x
-             × ⟨ f ⊕ g ⨾ h ⊕ i ∣ inj₂ b₁ ∣ ☐ ⟩▷ ↦* toState (f ⊕ g ⨾ h ⊕ i) x
-      Loop₃⃗ {b₁} {b₂} (ts₁ , ts₂) with inspect⊎ (run ⟨ i ∣ b₂ ∣ ☐ ⟩▷) (λ ())
-      Loop₃⃗ {b₁} {b₂} (ts₁ , ts₂) | inj₁ ((b₂' , rs) , eq) =
-             Loop₄⃗ ( ts₁ ++↦ ↦⃗₇ ∷ appendκ↦* rs refl (g ⨾☐• (f ⨾ h ⊕☐• ☐)) ++↦ ↦⃖₇ ∷ ◾
-                    , ts₂ ++↦ (↦⃗₇ ∷ ↦⃗₅ ∷ ◾) ++↦ appendκ↦* rs refl (h ⊕☐• (f ⊕ g ⨾☐• ☐)) ++↦ ↦⃖₅ ∷ ↦⃖₇ ∷ ◾)
-      Loop₃⃗ {b₁} {b₂} (ts₁ , ts₂) | inj₂ ((b₃  , rs) , eq) =
-             inj₂ b₃ ⃗ , ts₁ ++↦ ↦⃗₇ ∷ appendκ↦* rs refl (g ⨾☐• (f ⨾ h ⊕☐• ☐)) ++↦ ↦⃗₁₀ ∷ ↦⃗₁₂ ∷ ◾
-                       , ts₂ ++↦ (↦⃗₇ ∷ ↦⃗₅ ∷ ◾) ++↦ appendκ↦* rs refl (h ⊕☐• (f ⊕ g ⨾☐• ☐)) ++↦ ↦⃗₁₂ ∷ ↦⃗₁₀ ∷ ◾
+            rs₂' : ［ g ∣ b₂ ∣ f ⊕☐• (☐⨾ h ⊕ i • ☐) ］▷ ↦* ⟨ i ∣ b₂' ∣ h ⊕☐• (f ⊕ g ⨾☐• ☐) ⟩◁
+            rs₂' = (↦⃗₁₂ ∷ ↦⃗₇ ∷ ↦⃗₅ ∷ ◾) ++↦ appendκ↦* rsb refl (h ⊕☐• (f ⊕ g ⨾☐• ☐))
 
-      Loop₄⃗ : {b₁ : ⟦ B₁ ⟧} {b₂ : ⟦ B₂ ⟧}
-             → ⟨ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₂ b₁ ∣ ☐ ⟩▷ ↦* ［ g ∣ b₂ ∣ ☐⨾ i • (f ⨾ h ⊕☐• ☐) ］◁
-             × ⟨ f ⊕ g ⨾ h ⊕ i ∣ inj₂ b₁ ∣ ☐ ⟩▷ ↦* ［ f ⊕ g ∣ inj₂ b₂ ∣ ☐⨾ h ⊕ i • ☐ ］◁
-             → Σ[ x ∈ Val (A₃ +ᵤ B₃) (A₁ +ᵤ B₁) ]
-               ⟨ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₂ b₁ ∣ ☐ ⟩▷ ↦* toState ((f ⨾ h) ⊕ (g ⨾ i)) x
-             × ⟨ f ⊕ g ⨾ h ⊕ i ∣ inj₂ b₁ ∣ ☐ ⟩▷ ↦* toState (f ⊕ g ⨾ h ⊕ i) x
-      Loop₄⃗ {b₁} {b₂} (ts₁ , ts₂) with inspect⊎ (run ［ g ∣ b₂ ∣ ☐ ］◁) (λ ())
-      Loop₄⃗ {b₁} {b₂} (ts₁ , ts₂) | inj₁ ((b₁' , rs) , eq) =
-             inj₂ b₁' ⃖ , ts₁ ++↦ appendκ↦* rs refl (☐⨾ i • (f ⨾ h ⊕☐• ☐)) ++↦ ↦⃖₃ ∷ ↦⃖₅ ∷ ◾
-                        , ts₂ ++↦ ↦⃖₁₂ ∷ appendκ↦* rs refl (f ⊕☐• (☐⨾ h ⊕ i • ☐)) ++↦ ↦⃖₅ ∷ ↦⃖₃ ∷ ◾
-      Loop₄⃗ {b₁} {b₂} (ts₁ , ts₂) | inj₂ ((b₂' , rs) , eq) = 
-             Loop₃⃗ ( ts₁ ++↦ appendκ↦* rs refl (☐⨾ i • (f ⨾ h ⊕☐• ☐))
-                    , ts₂ ++↦ ↦⃖₁₂ ∷ appendκ↦* rs refl (f ⊕☐• (☐⨾ h ⊕ i • ☐)) ++↦ ↦⃗₁₂ ∷ ◾)
+            req : len↦ rs ≡ len↦ rs₁' + len↦ rs₁''
+            req = proj₂ (deterministic*' rs₁' rs (is-stuck-toState _ _))
 
-      Loop₁⃖ : {a₃ : ⟦ A₃ ⟧} {a₂ : ⟦ A₂ ⟧}
-             → ［ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₁ a₃ ∣ ☐ ］◁ ↦* ［ f ∣ a₂ ∣ ☐⨾ h • (☐⊕ g ⨾ i • ☐) ］▷
-             × ［ f ⊕ g ⨾ h ⊕ i ∣ inj₁ a₃ ∣ ☐ ］◁ ↦* ［ f ⊕ g ∣ inj₁ a₂ ∣ ☐⨾ h ⊕ i • ☐ ］▷
-             → Σ[ x ∈ Val (A₃ +ᵤ B₃) (A₁ +ᵤ B₁) ]
-               ［ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₁ a₃ ∣ ☐ ］◁ ↦* toState ((f ⨾ h) ⊕ (g ⨾ i)) x
-             × ［ f ⊕ g ⨾ h ⊕ i ∣ inj₁ a₃ ∣ ☐ ］◁ ↦* toState (f ⊕ g ⨾ h ⊕ i) x
-      Loop₁⃖ {a₃} {a₂} (ts₁ , ts₂) with inspect⊎ (run ⟨ h ∣ a₂ ∣ ☐ ⟩▷) (λ ())
-      Loop₁⃖ {a₃} {a₂} (ts₁ , ts₂) | inj₁ ((a₂' , rs) , eq) =
-             Loop₂⃖ ( ts₁ ++↦ ↦⃗₇ ∷ appendκ↦* rs refl (f ⨾☐• (☐⊕ g ⨾ i • ☐)) ++↦ ↦⃖₇ ∷ ◾
-                    , ts₂ ++↦ (↦⃗₇ ∷ ↦⃗₄ ∷ ◾) ++↦ appendκ↦* rs refl (☐⊕ i • (f ⊕ g ⨾☐• ☐)) ++↦ ↦⃖₄ ∷ ↦⃖₇ ∷ ◾)
-      Loop₁⃖ {a₃} {a₂} (ts₁ , ts₂) | inj₂ ((a₃' , rs) , eq) =
-             inj₁ a₃' ⃗ , ts₁ ++↦ ↦⃗₇ ∷ appendκ↦* rs refl (f ⨾☐• (☐⊕ g ⨾ i • ☐)) ++↦ ↦⃗₁₀ ∷ ↦⃗₁₁ ∷ ◾
-                        , ts₂ ++↦ (↦⃗₇ ∷ ↦⃗₄ ∷ ◾) ++↦ appendκ↦* rs refl (☐⊕ i • (f ⊕ g ⨾☐• ☐)) ++↦ ↦⃗₁₁ ∷ ↦⃗₁₀ ∷ ◾
+            le : len↦ rs₁'' <′ len↦ rs
+            le = subst (λ x → len↦ rs₁'' <′ x) (sym req) (s≤′s (n≤′m+n _ _))
+          loop⃗ rs refl | inj₂ ((b₃  , rsb) , _) = lem
+            where
+            rs₁' : ［ g ∣ b₂ ∣ ☐⨾ i • (f ⨾ h ⊕☐• ☐) ］▷ ↦* ［ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₂ b₃ ∣ ☐ ］▷
+            rs₁' = ↦⃗₇ ∷ appendκ↦* rsb refl (g ⨾☐• (f ⨾ h ⊕☐• ☐)) ++↦ ↦⃗₁₀ ∷ ↦⃗₁₂ ∷ ◾
 
-      Loop₂⃖ : {a₃ : ⟦ A₃ ⟧} {a₂ : ⟦ A₂ ⟧}
-             → ［ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₁ a₃ ∣ ☐ ］◁ ↦* ［ f ∣ a₂ ∣ ☐⨾ h • (☐⊕ g ⨾ i • ☐) ］◁
-             × ［ f ⊕ g ⨾ h ⊕ i ∣ inj₁ a₃ ∣ ☐ ］◁ ↦* ［ f ⊕ g ∣ inj₁ a₂ ∣ ☐⨾ h ⊕ i • ☐ ］◁
-             → Σ[ x ∈ Val (A₃ +ᵤ B₃) (A₁ +ᵤ B₁) ]
-               ［ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₁ a₃ ∣ ☐ ］◁ ↦* toState ((f ⨾ h) ⊕ (g ⨾ i)) x
-             × ［ f ⊕ g ⨾ h ⊕ i ∣ inj₁ a₃ ∣ ☐ ］◁ ↦* toState (f ⊕ g ⨾ h ⊕ i) x
-      Loop₂⃖ {a₃} {a₂} (ts₁ , ts₂) with inspect⊎ (run ［ f ∣ a₂ ∣ ☐ ］◁) (λ ())
-      Loop₂⃖ {a₃} {a₂} (ts₁ , ts₂) | inj₁ ((a₁' , rs) , eq) =
-             inj₁ a₁' ⃖ , ts₁ ++↦ appendκ↦* rs refl (☐⨾ h • (☐⊕ g ⨾ i • ☐)) ++↦ ↦⃖₃ ∷ ↦⃖₄ ∷ ◾
-                        , ts₂ ++↦ ↦⃖₁₁ ∷ appendκ↦* rs refl (☐⊕ g • (☐⨾ h ⊕ i • ☐)) ++↦ ↦⃖₄ ∷ ↦⃖₃ ∷ ◾
-      Loop₂⃖ {a₃} {a₂} (ts₁ , ts₂) | inj₂ ((a₂' , rs) , eq) =
-             Loop₁⃖ ( ts₁ ++↦ appendκ↦* rs refl (☐⨾ h • (☐⊕ g ⨾ i • ☐))
-                    , ts₂ ++↦ ↦⃖₁₁ ∷ appendκ↦* rs refl (☐⊕ g • (☐⨾ h ⊕ i • ☐)) ++↦ ↦⃗₁₁ ∷ ◾)
+            xeq : x ≡ inj₂ b₃ ⃗
+            xeq = toState≡₁ (deterministic* rs rs₁' (is-stuck-toState _ _) (λ ()))
 
-      Loop₃⃖ : {b₃ : ⟦ B₃ ⟧} {b₂ : ⟦ B₂ ⟧}
-             → ［ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₂ b₃ ∣ ☐ ］◁ ↦* ［ g ∣ b₂ ∣ ☐⨾ i • (f ⨾ h ⊕☐• ☐) ］▷
-             × ［ f ⊕ g ⨾ h ⊕ i ∣ inj₂ b₃ ∣ ☐ ］◁ ↦* ［ f ⊕ g ∣ inj₂ b₂ ∣ ☐⨾ h ⊕ i • ☐ ］▷
-             → Σ[ x ∈ Val (A₃ +ᵤ B₃) (A₁ +ᵤ B₁) ]
-               ［ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₂ b₃ ∣ ☐ ］◁ ↦* toState ((f ⨾ h) ⊕ (g ⨾ i)) x
-             × ［ f ⊕ g ⨾ h ⊕ i ∣ inj₂ b₃ ∣ ☐ ］◁ ↦* toState (f ⊕ g ⨾ h ⊕ i) x
-      Loop₃⃖ {b₃} {b₂} (ts₁ , ts₂) with inspect⊎ (run ⟨ i ∣ b₂ ∣ ☐ ⟩▷) (λ ())
-      Loop₃⃖ {b₃} {b₂} (ts₁ , ts₂) | inj₁ ((b₂' , rs) , eq) =
-             Loop₄⃖ ( ts₁ ++↦ ↦⃗₇ ∷ appendκ↦* rs refl (g ⨾☐• (f ⨾ h ⊕☐• ☐)) ++↦ ↦⃖₇ ∷ ◾
-                    , ts₂ ++↦ (↦⃗₇ ∷ ↦⃗₅ ∷ ◾) ++↦ appendκ↦* rs refl (h ⊕☐• (f ⊕ g ⨾☐• ☐)) ++↦ ↦⃖₅ ∷ ↦⃖₇ ∷ ◾)
-      Loop₃⃖ {b₃} {b₂} (ts₁ , ts₂) | inj₂ ((b₃' , rs) , eq) =
-             inj₂ b₃' ⃗ , ts₁ ++↦ ↦⃗₇ ∷ appendκ↦* rs refl (g ⨾☐• (f ⨾ h ⊕☐• ☐)) ++↦ ↦⃗₁₀ ∷ ↦⃗₁₂ ∷ ◾
-                        , ts₂ ++↦ (↦⃗₇ ∷ ↦⃗₅ ∷ ◾) ++↦ appendκ↦* rs refl (h ⊕☐• (f ⊕ g ⨾☐• ☐)) ++↦ ↦⃗₁₂ ∷ ↦⃗₁₀ ∷ ◾
+            lem : ［ g ∣ b₂ ∣ f ⊕☐• (☐⨾ h ⊕ i • ☐) ］▷ ↦* toState (f ⊕ g ⨾ h ⊕ i) x
+            lem rewrite xeq = (↦⃗₁₂ ∷ ↦⃗₇ ∷ ↦⃗₅ ∷ ◾) ++↦ appendκ↦* rsb refl (h ⊕☐• (f ⊕ g ⨾☐• ☐)) ++↦ ↦⃗₁₂ ∷ ↦⃗₁₀ ∷ ◾
+          loop⃖ : (rs : ⟨ i ∣ b₂ ∣ g ⨾☐• (f ⨾ h ⊕☐• ☐) ⟩◁ ↦* toState ((f ⨾ h) ⊕ (g ⨾ i)) x) → len↦ rs ≡ n → ⟨ i ∣ b₂ ∣ h ⊕☐• (f ⊕ g ⨾☐• ☐) ⟩◁ ↦* toState (f ⊕ g ⨾ h ⊕ i) x
+          loop⃖ rs refl with inspect⊎ (run ［ g ∣ b₂ ∣ ☐ ］◁) (λ ())
+          loop⃖ rs refl | inj₁ ((b₁  , rsb) , _) = lem
+            where
+            rs₁' : ⟨ i ∣ b₂ ∣ g ⨾☐• (f ⨾ h ⊕☐• ☐) ⟩◁ ↦* ⟨ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₂ b₁ ∣ ☐ ⟩◁
+            rs₁' = ↦⃖₇ ∷ appendκ↦* rsb refl (☐⨾ i • (f ⨾ h ⊕☐• ☐)) ++↦ ↦⃖₃ ∷ ↦⃖₅ ∷ ◾
 
-      Loop₄⃖ : {b₃ : ⟦ B₃ ⟧} {b₂ : ⟦ B₂ ⟧}
-             → ［ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₂ b₃ ∣ ☐ ］◁ ↦* ［ g ∣ b₂ ∣ ☐⨾ i • (f ⨾ h ⊕☐• ☐) ］◁
-             × ［ f ⊕ g ⨾ h ⊕ i ∣ inj₂ b₃ ∣ ☐ ］◁ ↦* ［ f ⊕ g ∣ inj₂ b₂ ∣ ☐⨾ h ⊕ i • ☐ ］◁
-             → Σ[ x ∈ Val (A₃ +ᵤ B₃) (A₁ +ᵤ B₁) ]
-               ［ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₂ b₃ ∣ ☐ ］◁ ↦* toState ((f ⨾ h) ⊕ (g ⨾ i)) x
-             × ［ f ⊕ g ⨾ h ⊕ i ∣ inj₂ b₃ ∣ ☐ ］◁ ↦* toState (f ⊕ g ⨾ h ⊕ i) x
-      Loop₄⃖ {b₃} {b₂} (ts₁ , ts₂) with inspect⊎ (run ［ g ∣ b₂ ∣ ☐ ］◁) (λ ())
-      Loop₄⃖ {b₃} {b₂} (ts₁ , ts₂) | inj₁ ((b₁' , rs) , eq) =
-             inj₂ b₁' ⃖ , ts₁ ++↦ appendκ↦* rs refl (☐⨾ i • (f ⨾ h ⊕☐• ☐)) ++↦ ↦⃖₃ ∷ ↦⃖₅ ∷ ◾
-                        , ts₂ ++↦ ↦⃖₁₂ ∷ appendκ↦* rs refl (f ⊕☐• (☐⨾ h ⊕ i • ☐)) ++↦ ↦⃖₅ ∷ ↦⃖₃ ∷ ◾
-      Loop₄⃖ {b₃} {b₂} (ts₁ , ts₂) | inj₂ ((b₂' , rs) , eq) = 
-             Loop₃⃖ ( ts₁ ++↦ appendκ↦* rs refl (☐⨾ i • (f ⨾ h ⊕☐• ☐))
-                    , ts₂ ++↦ ↦⃖₁₂ ∷ appendκ↦* rs refl (f ⊕☐• (☐⨾ h ⊕ i • ☐)) ++↦ ↦⃗₁₂ ∷ ◾)
+            xeq : x ≡ inj₂ b₁ ⃖
+            xeq = toState≡₂ (deterministic* rs rs₁' (is-stuck-toState _ _) (λ ()))
+
+            lem : ⟨ i ∣ b₂ ∣ h ⊕☐• ((f ⊕ g) ⨾☐• ☐) ⟩◁ ↦* toState (f ⊕ g ⨾ h ⊕ i) x
+            lem rewrite xeq = (↦⃖₅ ∷ ↦⃖₇ ∷ ↦⃖₁₂ ∷ ◾) ++↦ appendκ↦* rsb refl (f ⊕☐• (☐⨾ h ⊕ i • ☐)) ++↦ ↦⃖₅ ∷ ↦⃖₃ ∷ ◾
+          loop⃖ rs refl | inj₂ ((b₂' , rsb) , _) = rs₂' ++↦ proj₁ (proj₂ (R (len↦ rs₁'') le) b₂') rs₁'' refl
+            where
+            rs₁' : ⟨ i ∣ b₂ ∣ g ⨾☐• (f ⨾ h ⊕☐• ☐) ⟩◁ ↦* ［ g ∣ b₂' ∣ ☐⨾ i • ((f ⨾ h) ⊕☐• ☐) ］▷
+            rs₁' = ↦⃖₇ ∷ appendκ↦* rsb refl (☐⨾ i • (f ⨾ h ⊕☐• ☐))
+
+            rs₁'' : ［ g ∣ b₂' ∣ ☐⨾ i • ((f ⨾ h) ⊕☐• ☐) ］▷ ↦* toState ((f ⨾ h) ⊕ (g ⨾ i)) x
+            rs₁'' = proj₁ (deterministic*' rs₁' rs (is-stuck-toState _ _))
+
+            rs₂' : ⟨ i ∣ b₂ ∣ h ⊕☐• ((f ⊕ g) ⨾☐• ☐) ⟩◁ ↦* ［ g ∣ b₂' ∣ f ⊕☐• (☐⨾ h ⊕ i • ☐) ］▷
+            rs₂' = (↦⃖₅ ∷ ↦⃖₇ ∷ ↦⃖₁₂ ∷ ◾) ++↦ appendκ↦* rsb refl (f ⊕☐• (☐⨾ h ⊕ i • ☐))
+
+            req : len↦ rs ≡ len↦ rs₁' + len↦ rs₁''
+            req = proj₂ (deterministic*' rs₁' rs (is-stuck-toState _ _))
+
+            le : len↦ rs₁'' <′ len↦ rs
+            le = subst (λ x → len↦ rs₁'' <′ x) (sym req) (s≤′s (n≤′m+n _ _))
+
+  homomorphism : eval ((f ⨾ h) ⊕ (g ⨾ i)) ∼ eval (f ⊕ g ⨾ h ⊕ i)
+  homomorphism (inj₁ a ⃗) with inspect⊎ (run ⟨ f ∣ a ∣ ☐ ⟩▷) (λ ())
+  homomorphism (inj₁ a ⃗) | inj₁ ((a₁ , rs) , eq) = lem
+    where
+    rs₁' : ⟨ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₁ a ∣ ☐ ⟩▷ ↦* ⟨ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₁ a₁ ∣ ☐ ⟩◁
+    rs₁' = (↦⃗₄ ∷ ↦⃗₃ ∷ ◾) ++↦ appendκ↦* rs refl (☐⨾ h • (☐⊕ g ⨾ i • ☐)) ++↦ ↦⃖₃ ∷ ↦⃖₄ ∷ ◾
+
+    rs₂' : ⟨ f ⊕ g ⨾ h ⊕ i ∣ inj₁ a ∣ ☐ ⟩▷ ↦* ⟨ f ⊕ g ⨾ h ⊕ i ∣ inj₁ a₁ ∣ ☐ ⟩◁
+    rs₂' = (↦⃗₃ ∷ ↦⃗₄ ∷ ◾) ++↦ appendκ↦* rs refl (☐⊕ g • (☐⨾ h ⊕ i • ☐)) ++↦ ↦⃖₄ ∷ ↦⃖₃ ∷ ◾
+
+    lem : eval ((f ⨾ h) ⊕ (g ⨾ i)) (inj₁ a ⃗) ≡ eval (f ⊕ g ⨾ h ⊕ i) (inj₁ a ⃗)
+    lem rewrite eval-toState₁ rs₁' | eval-toState₁ rs₂' = refl
+  homomorphism (inj₁ a ⃗) | inj₂ ((a₂ , rs) , eq) = lem
+    where
+    rs₁' : ⟨ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₁ a ∣ ☐ ⟩▷ ↦* ［ f ∣ a₂ ∣ ☐⨾ h • (☐⊕ g ⨾ i • ☐) ］▷
+    rs₁' = (↦⃗₄ ∷ ↦⃗₃ ∷ ◾) ++↦ appendκ↦* rs refl (☐⨾ h • (☐⊕ g ⨾ i • ☐))
+
+    rs₁'' : ［ f ∣ a₂ ∣ ☐⨾ h • (☐⊕ g ⨾ i • ☐) ］▷ ↦* toState ((f ⨾ h) ⊕ (g ⨾ i)) (eval ((f ⨾ h) ⊕ (g ⨾ i)) (inj₁ a ⃗))
+    rs₁'' = proj₁ (deterministic*' rs₁' (getₜᵣ⃗ ((f ⨾ h) ⊕ (g ⨾ i)) refl) (is-stuck-toState _ _))
+
+    rs₂' : ⟨ f ⊕ g ⨾ h ⊕ i ∣ inj₁ a ∣ ☐ ⟩▷ ↦* ［ f ∣ a₂ ∣ ☐⊕ g • (☐⨾ h ⊕ i • ☐) ］▷
+    rs₂' = (↦⃗₃ ∷ ↦⃗₄ ∷ ◾) ++↦ appendκ↦* rs refl (☐⊕ g • (☐⨾ h ⊕ i • ☐))
+
+    rs₂'' : ［ f ∣ a₂ ∣ ☐⊕ g • (☐⨾ h ⊕ i • ☐) ］▷ ↦* toState (f ⊕ g ⨾ h ⊕ i) (eval ((f ⨾ h) ⊕ (g ⨾ i)) (inj₁ a ⃗))
+    rs₂'' = proj₁ (proj₁ (loop (len↦ rs₁'')) a₂) rs₁'' refl
+
+    lem : eval ((f ⨾ h) ⊕ (g ⨾ i)) (inj₁ a ⃗) ≡ eval (f ⊕ g ⨾ h ⊕ i) (inj₁ a ⃗)
+    lem rewrite eval-toState₁ (rs₂' ++↦ rs₂'') = refl
+  homomorphism (inj₂ b ⃗) with inspect⊎ (run ⟨ g ∣ b ∣ ☐ ⟩▷) (λ ())
+  homomorphism (inj₂ b ⃗) | inj₁ ((b₁ , rs) , eq) = lem
+    where
+    rs₁' : ⟨ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₂ b ∣ ☐ ⟩▷ ↦* ⟨ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₂ b₁ ∣ ☐ ⟩◁
+    rs₁' = (↦⃗₅ ∷ ↦⃗₃ ∷ ◾) ++↦ appendκ↦* rs refl (☐⨾ i • (f ⨾ h ⊕☐• ☐)) ++↦ ↦⃖₃ ∷ ↦⃖₅ ∷ ◾
+
+    rs₂' : ⟨ f ⊕ g ⨾ h ⊕ i ∣ inj₂ b ∣ ☐ ⟩▷ ↦* ⟨ f ⊕ g ⨾ h ⊕ i ∣ inj₂ b₁ ∣ ☐ ⟩◁
+    rs₂' = (↦⃗₃ ∷ ↦⃗₅ ∷ ◾) ++↦ appendκ↦* rs refl (f ⊕☐• (☐⨾ h ⊕ i • ☐)) ++↦ ↦⃖₅ ∷ ↦⃖₃ ∷ ◾
+
+    lem : eval ((f ⨾ h) ⊕ (g ⨾ i)) (inj₂ b ⃗) ≡ eval (f ⊕ g ⨾ h ⊕ i) (inj₂ b ⃗)
+    lem rewrite eval-toState₁ rs₁' | eval-toState₁ rs₂' = refl
+  homomorphism (inj₂ b ⃗) | inj₂ ((b₂ , rs) , eq) = lem
+    where
+    rs₁' : ⟨ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₂ b ∣ ☐ ⟩▷ ↦* ［ g ∣ b₂ ∣ ☐⨾ i • (f ⨾ h ⊕☐• ☐) ］▷
+    rs₁' = (↦⃗₅ ∷ ↦⃗₃ ∷ ◾) ++↦ appendκ↦* rs refl (☐⨾ i • (f ⨾ h ⊕☐• ☐))
+
+    rs₁'' : ［ g ∣ b₂ ∣ ☐⨾ i • (f ⨾ h ⊕☐• ☐) ］▷ ↦* toState ((f ⨾ h) ⊕ (g ⨾ i)) (eval ((f ⨾ h) ⊕ (g ⨾ i)) (inj₂ b ⃗))
+    rs₁'' = proj₁ (deterministic*' rs₁' (getₜᵣ⃗ ((f ⨾ h) ⊕ (g ⨾ i)) refl) (is-stuck-toState _ _))
+
+    rs₂' : ⟨ f ⊕ g ⨾ h ⊕ i ∣ inj₂ b ∣ ☐ ⟩▷ ↦* ［ g ∣ b₂ ∣ f ⊕☐• (☐⨾ h ⊕ i • ☐) ］▷
+    rs₂' = (↦⃗₃ ∷ ↦⃗₅ ∷ ◾) ++↦ appendκ↦* rs refl (f ⊕☐• (☐⨾ h ⊕ i • ☐))
+
+    rs₂'' : ［ g ∣ b₂ ∣ f ⊕☐• (☐⨾ h ⊕ i • ☐) ］▷ ↦* toState (f ⊕ g ⨾ h ⊕ i) (eval ((f ⨾ h) ⊕ (g ⨾ i)) (inj₂ b ⃗))
+    rs₂'' = proj₁ (proj₂ (loop (len↦ rs₁'')) b₂) rs₁'' refl
+
+    lem : eval ((f ⨾ h) ⊕ (g ⨾ i)) (inj₂ b ⃗) ≡ eval (f ⊕ g ⨾ h ⊕ i) (inj₂ b ⃗)
+    lem rewrite eval-toState₁ (rs₂' ++↦ rs₂'') = refl
+  homomorphism (inj₁ a ⃖) with inspect⊎ (run ［ h ∣ a ∣ ☐ ］◁) (λ ())
+  homomorphism (inj₁ a ⃖) | inj₁ ((a₂ , rs) , eq) = lem
+    where
+    rs₁' : ［ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₁ a ∣ ☐ ］◁ ↦* ⟨ h ∣ a₂ ∣ f ⨾☐• (☐⊕ (g ⨾ i) • ☐) ⟩◁
+    rs₁' = (↦⃖₁₁ ∷ ↦⃖₁₀ ∷ ◾) ++↦ appendκ↦* rs refl (f ⨾☐• (☐⊕ g ⨾ i • ☐))
+
+    rs₁'' : ⟨ h ∣ a₂ ∣ f ⨾☐• (☐⊕ (g ⨾ i) • ☐) ⟩◁ ↦* toState ((f ⨾ h) ⊕ (g ⨾ i)) (eval ((f ⨾ h) ⊕ (g ⨾ i)) (inj₁ a ⃖))
+    rs₁'' = proj₁ (deterministic*' rs₁' (getₜᵣ⃖ ((f ⨾ h) ⊕ (g ⨾ i)) refl) (is-stuck-toState _ _))
+
+    rs₂' : ［ f ⊕ g ⨾ h ⊕ i ∣ inj₁ a ∣ ☐ ］◁ ↦* ⟨ h ∣ a₂ ∣ ☐⊕ i • (f ⊕ g ⨾☐• ☐) ⟩◁
+    rs₂' = (↦⃖₁₀ ∷ ↦⃖₁₁ ∷ ◾) ++↦ appendκ↦* rs refl (☐⊕ i • (f ⊕ g ⨾☐• ☐))
+
+    rs₂'' : ⟨ h ∣ a₂ ∣ ☐⊕ i • (f ⊕ g ⨾☐• ☐) ⟩◁ ↦* toState (f ⊕ g ⨾ h ⊕ i) (eval ((f ⨾ h) ⊕ (g ⨾ i)) (inj₁ a ⃖))
+    rs₂'' = proj₂ (proj₁ (loop (len↦ rs₁'')) a₂) rs₁'' refl
+    
+    lem : eval ((f ⨾ h) ⊕ (g ⨾ i)) (inj₁ a ⃖) ≡ eval (f ⊕ g ⨾ h ⊕ i) (inj₁ a ⃖)
+    lem rewrite eval-toState₂ (rs₂' ++↦ rs₂'') = refl
+  homomorphism (inj₁ a ⃖) | inj₂ ((a₃ , rs) , eq) = lem
+    where
+    rs₁' : ［ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₁ a ∣ ☐ ］◁ ↦* ［ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₁ a₃ ∣ ☐ ］▷
+    rs₁' = (↦⃖₁₁ ∷ ↦⃖₁₀ ∷ ◾) ++↦ appendκ↦* rs refl (f ⨾☐• (☐⊕ g ⨾ i • ☐)) ++↦ ↦⃗₁₀ ∷ ↦⃗₁₁ ∷ ◾
+
+    rs₂' : ［ f ⊕ g ⨾ h ⊕ i ∣ inj₁ a ∣ ☐ ］◁ ↦* ［ f ⊕ g ⨾ h ⊕ i ∣ inj₁ a₃ ∣ ☐ ］▷
+    rs₂' = (↦⃖₁₀ ∷ ↦⃖₁₁ ∷ ◾) ++↦ appendκ↦* rs refl (☐⊕ i • (f ⊕ g ⨾☐• ☐)) ++↦ ↦⃗₁₁ ∷ ↦⃗₁₀ ∷ ◾
+
+    lem : eval ((f ⨾ h) ⊕ (g ⨾ i)) (inj₁ a ⃖) ≡ eval (f ⊕ g ⨾ h ⊕ i) (inj₁ a ⃖)
+    lem rewrite eval-toState₂ rs₁' | eval-toState₂ rs₂' = refl
+  homomorphism (inj₂ b ⃖) with inspect⊎ (run ［ i ∣ b ∣ ☐ ］◁) (λ ())
+  homomorphism (inj₂ b ⃖) | inj₁ ((b₂ , rs) , eq) = lem
+    where
+    rs₁' : ［ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₂ b ∣ ☐ ］◁ ↦* ⟨ i ∣ b₂ ∣ g ⨾☐• (f ⨾ h ⊕☐• ☐) ⟩◁
+    rs₁' = (↦⃖₁₂ ∷ ↦⃖₁₀ ∷ ◾) ++↦ appendκ↦* rs refl (g ⨾☐• (f ⨾ h ⊕☐• ☐))
+
+    rs₁'' : ⟨ i ∣ b₂ ∣ g ⨾☐• (f ⨾ h ⊕☐• ☐) ⟩◁ ↦* toState ((f ⨾ h) ⊕ (g ⨾ i)) (eval ((f ⨾ h) ⊕ (g ⨾ i)) (inj₂ b ⃖))
+    rs₁'' = proj₁ (deterministic*' rs₁' (getₜᵣ⃖ ((f ⨾ h) ⊕ (g ⨾ i)) refl) (is-stuck-toState _ _))
+
+    rs₂' : ［ f ⊕ g ⨾ h ⊕ i ∣ inj₂ b ∣ ☐ ］◁ ↦* ⟨ i ∣ b₂ ∣ h ⊕☐• (f ⊕ g ⨾☐• ☐) ⟩◁
+    rs₂' = (↦⃖₁₀ ∷ ↦⃖₁₂ ∷ ◾) ++↦ appendκ↦* rs refl (h ⊕☐• (f ⊕ g ⨾☐• ☐))
+
+    rs₂'' : ⟨ i ∣ b₂ ∣ h ⊕☐• (f ⊕ g ⨾☐• ☐) ⟩◁ ↦* toState (f ⊕ g ⨾ h ⊕ i) (eval ((f ⨾ h) ⊕ (g ⨾ i)) (inj₂ b ⃖))
+    rs₂'' = proj₂ (proj₂ (loop (len↦ rs₁'')) b₂) rs₁'' refl
+
+    lem : eval ((f ⨾ h) ⊕ (g ⨾ i)) (inj₂ b ⃖) ≡ eval (f ⊕ g ⨾ h ⊕ i) (inj₂ b ⃖)
+    lem rewrite eval-toState₂ (rs₂' ++↦ rs₂'') = refl
+  homomorphism (inj₂ b ⃖) | inj₂ ((b₃ , rs) , eq) = lem
+    where
+    rs₁' : ［ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₂ b ∣ ☐ ］◁ ↦* ［ (f ⨾ h) ⊕ (g ⨾ i) ∣ inj₂ b₃ ∣ ☐ ］▷
+    rs₁' = (↦⃖₁₂ ∷ ↦⃖₁₀ ∷ ◾) ++↦ appendκ↦* rs refl (g ⨾☐• (f ⨾ h ⊕☐• ☐)) ++↦ ↦⃗₁₀ ∷ ↦⃗₁₂ ∷ ◾
+
+    rs₂' : ［ f ⊕ g ⨾ h ⊕ i ∣ inj₂ b ∣ ☐ ］◁ ↦* ［ f ⊕ g ⨾ h ⊕ i ∣ inj₂ b₃ ∣ ☐ ］▷
+    rs₂' = (↦⃖₁₀ ∷ ↦⃖₁₂ ∷ ◾) ++↦ appendκ↦* rs refl (h ⊕☐• (f ⊕ g ⨾☐• ☐)) ++↦ ↦⃗₁₂ ∷ ↦⃗₁₀ ∷ ◾
+
+    lem : eval ((f ⨾ h) ⊕ (g ⨾ i)) (inj₂ b ⃖) ≡ eval (f ⊕ g ⨾ h ⊕ i) (inj₂ b ⃖)
+    lem rewrite eval-toState₂ rs₁' | eval-toState₂ rs₂' = refl
 
 open homomorphism public
 
@@ -1307,29 +1100,59 @@ module Inverse where
       lem rewrite eval-toState₁ rs' = eval-toState₂ rs!
     !rev (c₁ ⨾ c₂) (x ⃗) refl | inj₂ ((x' , rs) , eq) = lem
       where
-      rs' : ⟨ c₁ ⨾ c₂ ∣ x ∣ ☐ ⟩▷ ↦* ［ c₁ ∣ x' ∣ ☐⨾ c₂ • ☐ ］▷
-      rs' = ↦⃗₃ ∷ appendκ↦* rs refl (☐⨾ c₂ • ☐)
+      rs' : ［ c₁ ∣ x' ∣ ☐⨾ c₂ • ☐ ］▷ ↦* toState (c₁ ⨾ c₂) (eval (c₁ ⨾ c₂) (x ⃗))
+      rs' = proj₁ (deterministic*' (↦⃗₃ ∷ appendκ↦* rs refl (☐⨾ c₂ • ☐)) (getₜᵣ⃗ (c₁ ⨾ c₂) refl) (is-stuck-toState _ _))
 
       rs! : ［ ! c₂ ⨾ ! c₁ ∣ x ∣ ☐ ］◁ ↦* ⟨ ! c₁ ∣ x' ∣ ! c₂ ⨾☐• ☐ ⟩◁
       rs! = ↦⃖₁₀ ∷ Rev* (appendκ↦* (getₜᵣ⃗ (! c₁) (!rev c₁ (x ⃗) (eval-toState₁ rs))) refl (! c₂ ⨾☐• ☐))
 
+      rs!' : ⟨ ! c₁ ∣ x' ∣ ! c₂ ⨾☐• ☐ ⟩◁ ↦* toState! (c₁ ⨾ c₂) (eval (c₁ ⨾ c₂) (x ⃗))
+      rs!' = proj₁ (loop (len↦ rs') x') rs' refl
+
       lem : eval (! (c₁ ⨾ c₂)) (eval (c₁ ⨾ c₂) (x ⃗)) ≡ x ⃗
-      lem with eval (c₁ ⨾ c₂) (x ⃗) | loop₁⃗ rs' rs!
-      ... | (x'' ⃗) | rs!' = eval-toState₁ (Rev* rs!')
-      ... | (x'' ⃖) | rs!' = eval-toState₂ (Rev* rs!')
+      lem with eval (c₁ ⨾ c₂) (x ⃗) | inspect (eval (c₁ ⨾ c₂)) (x ⃗)
+      ... | (x'' ⃗) | [ eq ] = eval-toState₁ (Rev* rs!'')
+        where
+        seq : toState! (c₁ ⨾ c₂) (eval (c₁ ⨾ c₂) (x ⃗)) ≡ ⟨ ! c₂ ⨾ ! c₁ ∣ x'' ∣ ☐ ⟩◁
+        seq rewrite eq = refl
+        
+        rs!'' : ［ ! c₂ ⨾ ! c₁ ∣ x ∣ ☐ ］◁ ↦* ⟨ ! c₂ ⨾ ! c₁ ∣ x'' ∣ ☐ ⟩◁
+        rs!'' = subst (λ st → ［ ! c₂ ⨾ ! c₁ ∣ x ∣ ☐ ］◁ ↦* st) seq (rs! ++↦ rs!')
+      ... | (x'' ⃖) | [ eq ] = eval-toState₂ (Rev* rs!'')
+        where
+        seq : toState! (c₁ ⨾ c₂) (eval (c₁ ⨾ c₂) (x ⃗)) ≡ ［ ! c₂ ⨾ ! c₁ ∣ x'' ∣ ☐ ］▷
+        seq rewrite eq = refl
+        
+        rs!'' : ［ ! c₂ ⨾ ! c₁ ∣ x ∣ ☐ ］◁ ↦* ［ ! c₂ ⨾ ! c₁ ∣ x'' ∣ ☐ ］▷
+        rs!'' = subst (λ st → ［ ! c₂ ⨾ ! c₁ ∣ x ∣ ☐ ］◁ ↦* st) seq (rs! ++↦ rs!')
     !rev (c₁ ⨾ c₂) (x ⃖) refl with inspect⊎ (run ［ c₂ ∣ x ∣ ☐ ］◁) (λ ())
     !rev (c₁ ⨾ c₂) (x ⃖) refl | inj₁ ((x' , rs) , eq) = lem
       where
-      rs' : ［ c₁ ⨾ c₂ ∣ x ∣ ☐ ］◁ ↦* ［ c₁ ∣ x' ∣ ☐⨾ c₂ • ☐ ］◁
-      rs' = ↦⃖₁₀ ∷ appendκ↦* rs refl (c₁ ⨾☐• ☐) ++↦ ↦⃖₇ ∷ ◾
-      
+      rs' : ⟨ c₂ ∣ x' ∣ c₁ ⨾☐• ☐ ⟩◁ ↦* toState (c₁ ⨾ c₂) (eval (c₁ ⨾ c₂) (x ⃖))
+      rs' = proj₁ (deterministic*' (↦⃖₁₀ ∷ appendκ↦* rs refl (c₁ ⨾☐• ☐)) (getₜᵣ⃖ (c₁ ⨾ c₂) refl) (is-stuck-toState _ _))
+
       rs! :  ⟨ ! c₂ ⨾ ! c₁ ∣ x ∣ ☐ ⟩▷ ↦* ⟨ ! c₁ ∣ x' ∣ ! c₂ ⨾☐• ☐ ⟩▷
       rs! = (↦⃗₃ ∷ ◾) ++↦ Rev* (appendκ↦* (getₜᵣ⃖ (! c₂) (!rev c₂ (x ⃖) (eval-toState₂ rs))) refl (☐⨾ ! c₁ • ☐)) ++↦ ↦⃗₇ ∷ ◾
 
+      rs!' : ⟨ ! c₁ ∣ x' ∣ ! c₂ ⨾☐• ☐ ⟩▷ ↦* toState! (c₁ ⨾ c₂) (eval (c₁ ⨾ c₂) (x ⃖))
+      rs!' = proj₂ (loop (len↦ rs') x') rs' refl
+
       lem : eval (! (c₁ ⨾ c₂)) (eval (c₁ ⨾ c₂) (x ⃖)) ≡ x ⃖
-      lem with eval (c₁ ⨾ c₂) (x ⃖) | loop₂⃖ rs' rs!
-      ... | (x'' ⃗) | rs!' = eval-toState₁ (Rev* rs!')
-      ... | (x'' ⃖) | rs!' = eval-toState₂ (Rev* rs!')
+      lem with eval (c₁ ⨾ c₂) (x ⃖) | inspect (eval (c₁ ⨾ c₂)) (x ⃖)
+      ... | (x'' ⃗) | [ eq ] = eval-toState₁ (Rev* rs!'')
+        where
+        seq : toState! (c₁ ⨾ c₂) (eval (c₁ ⨾ c₂) (x ⃖)) ≡ ⟨ ! c₂ ⨾ ! c₁ ∣ x'' ∣ ☐ ⟩◁
+        seq rewrite eq = refl
+        
+        rs!'' : ⟨ ! c₂ ⨾ ! c₁ ∣ x ∣ ☐ ⟩▷ ↦* ⟨ ! c₂ ⨾ ! c₁ ∣ x'' ∣ ☐ ⟩◁
+        rs!'' = subst (λ st → ⟨ ! c₂ ⨾ ! c₁ ∣ x ∣ ☐ ⟩▷ ↦* st) seq (rs! ++↦ rs!')
+      ... | (x'' ⃖) | [ eq ] = eval-toState₂ (Rev* rs!'')
+        where
+        seq : toState! (c₁ ⨾ c₂) (eval (c₁ ⨾ c₂) (x ⃖)) ≡ ［ ! c₂ ⨾ ! c₁ ∣ x'' ∣ ☐ ］▷
+        seq rewrite eq = refl
+        
+        rs!'' : ⟨ ! c₂ ⨾ ! c₁ ∣ x ∣ ☐ ⟩▷ ↦* ［ ! c₂ ⨾ ! c₁ ∣ x'' ∣ ☐ ］▷
+        rs!'' = subst (λ st → ⟨ ! c₂ ⨾ ! c₁ ∣ x ∣ ☐ ⟩▷ ↦* st) seq (rs! ++↦ rs!')
     !rev (c₁ ⨾ c₂) (x ⃖) refl | inj₂ ((x' , rs) , eq) = lem
       where
       rs' : ［ c₁ ⨾ c₂ ∣ x ∣ ☐ ］◁ ↦* ［ c₁ ⨾ c₂ ∣ x' ∣ ☐ ］▷
@@ -1520,98 +1343,84 @@ module Inverse where
     !rev ε₊ (inj₂ (- x) ⃗) refl = refl
 
     private
-      {-# TERMINATING #-}
-      loop₁⃗ : ∀ {A B C a₀} {c₁ : A ↔ B} {b : ⟦ B ⟧} {c₂ : B ↔ C}
-             → ⟨ c₁ ⨾ c₂ ∣ a₀ ∣ ☐ ⟩▷ ↦* ［ c₁ ∣ b ∣ ☐⨾ c₂ • ☐ ］▷
-             → ［ ! c₂ ⨾ ! c₁ ∣ a₀ ∣ ☐ ］◁ ↦* ⟨ ! c₁ ∣ b ∣ ! c₂ ⨾☐• ☐ ⟩◁
-             → ［ ! c₂ ⨾ ! c₁ ∣ a₀ ∣ ☐ ］◁ ↦* (toState! (c₁ ⨾ c₂) (eval (c₁ ⨾ c₂) (a₀ ⃗)))
-      loop₁⃗ {a₀ = a₀} {c₁} {b} {c₂} rs rs! with inspect⊎ (run ⟨ c₂ ∣ b ∣ ☐ ⟩▷) (λ ())
-      loop₁⃗ {a₀ = a₀} {c₁} {b} {c₂} rs rs! | inj₁ ((b' , rsb) , eq) = loop₁⃖ rs' rs!'
+      loop : ∀ {A B C x} {c₁ : A ↔ B}  {c₂ : B ↔ C} (n : ℕ) →
+             ∀ b → ((rs : ［ c₁ ∣ b ∣ ☐⨾ c₂ • ☐ ］▷ ↦* toState (c₁ ⨾ c₂) x) →
+                    len↦ rs ≡ n →
+                    ⟨ ! c₁ ∣ b ∣ ! c₂ ⨾☐• ☐ ⟩◁ ↦* (toState! (c₁ ⨾ c₂) x))
+                 × ((rs : ⟨ c₂ ∣ b ∣ c₁ ⨾☐• ☐ ⟩◁ ↦* toState (c₁ ⨾ c₂) x) →
+                    len↦ rs ≡ n →
+                    ⟨ ! c₁ ∣ b ∣ ! c₂ ⨾☐• ☐ ⟩▷ ↦* (toState! (c₁ ⨾ c₂) x))
+      loop {x = x} {c₁} {c₂} = <′-rec (λ n → _) loop-rec
         where
-        rs' : ⟨ c₁ ⨾ c₂ ∣ a₀ ∣ ☐ ⟩▷ ↦* ［ c₁ ∣ b' ∣ ☐⨾ c₂ • ☐ ］◁
-        rs' = rs ++↦ ↦⃗₇ ∷ appendκ↦* rsb refl (c₁ ⨾☐• ☐) ++↦ ↦⃖₇ ∷ ◾
+        loop-rec : (n : ℕ) → (∀ m → m <′ n → _) → _
+        loop-rec n R b = loop₁ , loop₂
+          where
+          loop₁ : (rs : ［ c₁ ∣ b ∣ ☐⨾ c₂ • ☐ ］▷ ↦* toState (c₁ ⨾ c₂) x)
+                → len↦ rs ≡ n
+                → ⟨ ! c₁ ∣ b ∣ ! c₂ ⨾☐• ☐ ⟩◁ ↦* (toState! (c₁ ⨾ c₂) x)
+          loop₁ rs refl with inspect⊎ (run ⟨ c₂ ∣ b ∣ ☐ ⟩▷) (λ ())
+          loop₁ rs refl | inj₁ ((b' , rsb) , eq) = rs!' ++↦ proj₂ (R (len↦ rs'') le b') rs'' refl
+            where
+            rs' : ［ c₁ ∣ b ∣ ☐⨾ c₂ • ☐ ］▷ ↦* ⟨ c₂ ∣ b' ∣ c₁ ⨾☐• ☐ ⟩◁
+            rs' = ↦⃗₇ ∷ appendκ↦* rsb refl (c₁ ⨾☐• ☐)
 
-        rs!' : ［ ! c₂ ⨾ ! c₁ ∣ a₀ ∣ ☐ ］◁ ↦* ⟨ ! c₁ ∣ b' ∣ ! c₂ ⨾☐• ☐ ⟩▷
-        rs!' = rs! ++↦ ↦⃖₇ ∷ Rev* (appendκ↦* (getₜᵣ⃖ (! c₂) (!rev c₂ (b ⃗) (eval-toState₁ rsb))) refl (☐⨾ ! c₁ • ☐)) ++↦ ↦⃗₇ ∷ ◾
-      loop₁⃗ {a₀ = a₀} {c₁} {b} {c₂} rs rs! | inj₂ ((c  , rsb) , eq) = lem
-        where
-        rs' : ⟨ c₁ ⨾ c₂ ∣ a₀ ∣ ☐ ⟩▷ ↦* ［ c₁ ⨾ c₂ ∣ c ∣ ☐ ］▷
-        rs' = rs ++↦ ↦⃗₇ ∷ appendκ↦* rsb refl (c₁ ⨾☐• ☐) ++↦ ↦⃗₁₀ ∷ ◾
+            rs'' : ⟨ c₂ ∣ b' ∣ c₁ ⨾☐• ☐ ⟩◁ ↦* toState (c₁ ⨾ c₂) x
+            rs'' = proj₁ (deterministic*' rs' rs (is-stuck-toState _ _))
 
-        rs!' : ［ ! c₂ ⨾ ! c₁ ∣ a₀ ∣ ☐ ］◁ ↦* ⟨ ! c₂ ⨾ ! c₁ ∣ c ∣ ☐ ⟩◁
-        rs!' = rs! ++↦ ↦⃖₇ ∷ Rev* (appendκ↦* (getₜᵣ⃗ (! c₂) (!rev c₂ (b ⃗) (eval-toState₁ rsb))) refl (☐⨾ ! c₁ • ☐)) ++↦ ↦⃖₃ ∷ ◾
+            req : len↦ rs ≡ len↦ rs' + len↦ rs''
+            req = proj₂ (deterministic*' rs' rs (is-stuck-toState _ _))
 
-        lem : ［ ! c₂ ⨾ ! c₁ ∣ a₀ ∣ ☐ ］◁ ↦* (toState! (c₁ ⨾ c₂) (eval (c₁ ⨾ c₂) (a₀ ⃗)))
-        lem rewrite eval-toState₁ rs' = rs!'
-        
-      loop₁⃖ : ∀ {A B C a₀} {c₁ : A ↔ B} {b : ⟦ B ⟧} {c₂ : B ↔ C}
-             → ⟨ c₁ ⨾ c₂ ∣ a₀ ∣ ☐ ⟩▷ ↦* ［ c₁ ∣ b ∣ ☐⨾ c₂ • ☐ ］◁
-             → ［ ! c₂ ⨾ ! c₁ ∣ a₀ ∣ ☐ ］◁ ↦* ⟨ ! c₁ ∣ b ∣ ! c₂ ⨾☐• ☐ ⟩▷
-             → ［ ! c₂ ⨾ ! c₁ ∣ a₀ ∣ ☐ ］◁ ↦* (toState! (c₁ ⨾ c₂) (eval (c₁ ⨾ c₂) (a₀ ⃗)))
-      loop₁⃖ {a₀ = a₀} {c₁} {b} {c₂} rs rs! with inspect⊎ (run ［ c₁ ∣ b ∣ ☐  ］◁) (λ ())
-      loop₁⃖ {a₀ = a₀} {c₁} {b} {c₂} rs rs! | inj₁ ((a  , rsb) , eq) = lem
-        where
-        rs' : ⟨ c₁ ⨾ c₂ ∣ a₀ ∣ ☐ ⟩▷ ↦* ⟨ c₁ ⨾ c₂ ∣ a ∣ ☐ ⟩◁
-        rs' = rs ++↦ appendκ↦* rsb refl (☐⨾ c₂ • ☐) ++↦ ↦⃖₃ ∷ ◾
+            le : len↦ rs'' <′ len↦ rs
+            le = subst (λ x → len↦ rs'' <′ x) (sym req) (s≤′s (n≤′m+n _ _))
 
-        rs!' : ［ ! c₂ ⨾ ! c₁ ∣ a₀ ∣ ☐ ］◁ ↦* ［ ! c₂ ⨾ ! c₁ ∣ a ∣ ☐ ］▷
-        rs!' = rs! ++↦ Rev* (appendκ↦* (getₜᵣ⃖ (! c₁) (!rev c₁ (b ⃖) (eval-toState₂ rsb))) refl (! c₂ ⨾☐• ☐)) ++↦ ↦⃗₁₀ ∷ ◾
+            rs!' : ⟨ ! c₁ ∣ b ∣ ! c₂ ⨾☐• ☐ ⟩◁ ↦* ⟨ ! c₁ ∣ b' ∣ ! c₂ ⨾☐• ☐ ⟩▷
+            rs!' = ↦⃖₇ ∷ Rev* (appendκ↦* (getₜᵣ⃖ (! c₂) (!rev c₂ (b ⃗) (eval-toState₁ rsb))) refl (☐⨾ ! c₁ • ☐)) ++↦ ↦⃗₇ ∷ ◾
+          loop₁ rs refl | inj₂ ((c  , rsb) , eq) = lem
+            where
+            rs' : ［ c₁ ∣ b ∣ ☐⨾ c₂ • ☐ ］▷ ↦* ［ c₁ ⨾ c₂ ∣ c ∣ ☐ ］▷
+            rs' = ↦⃗₇ ∷ appendκ↦* rsb refl (c₁ ⨾☐• ☐) ++↦ ↦⃗₁₀ ∷ ◾
 
-        lem : ［ ! c₂ ⨾ ! c₁ ∣ a₀ ∣ ☐ ］◁ ↦* (toState! (c₁ ⨾ c₂) (eval (c₁ ⨾ c₂) (a₀ ⃗)))
-        lem rewrite eval-toState₁ rs' = rs!'
-      loop₁⃖ {a₀ = a₀} {c₁} {b} {c₂} rs rs! | inj₂ ((b' , rsb) , eq) = loop₁⃗ rs' rs!'
-        where
-        rs' : ⟨ c₁ ⨾ c₂ ∣ a₀ ∣ ☐ ⟩▷ ↦* ［ c₁ ∣ b' ∣ ☐⨾ c₂ • ☐ ］▷
-        rs' = rs ++↦ appendκ↦* rsb refl (☐⨾ c₂ • ☐)
+            rs!' : ⟨ ! c₁ ∣ b ∣ (! c₂) ⨾☐• ☐ ⟩◁ ↦* ⟨ ! c₂ ⨾ ! c₁ ∣ c ∣ ☐ ⟩◁
+            rs!' = ↦⃖₇ ∷ Rev* (appendκ↦* (getₜᵣ⃗ (! c₂) (!rev c₂ (b ⃗) (eval-toState₁ rsb))) refl (☐⨾ ! c₁ • ☐)) ++↦ ↦⃖₃ ∷ ◾
 
-        rs!' : ［ ! c₂ ⨾ ! c₁ ∣ a₀ ∣ ☐ ］◁ ↦* ⟨ ! c₁ ∣ b' ∣ ! c₂ ⨾☐• ☐ ⟩◁
-        rs!' = rs! ++↦ Rev* (appendκ↦* (getₜᵣ⃗ (! c₁) (!rev c₁ (b ⃖) (eval-toState₂ rsb))) refl (! c₂ ⨾☐• ☐))
+            xeq : x ≡ c ⃗
+            xeq = toState≡₁ (deterministic* rs rs' (is-stuck-toState _ _) (λ ()))
+            
+            lem : ⟨ ! c₁ ∣ b ∣ (! c₂) ⨾☐• ☐ ⟩◁ ↦* (toState! (c₁ ⨾ c₂) x)
+            lem rewrite xeq = rs!'
+          loop₂ : (rs : ⟨ c₂ ∣ b ∣ c₁ ⨾☐• ☐ ⟩◁ ↦* toState (c₁ ⨾ c₂) x)
+                → len↦ rs ≡ n
+                → ⟨ ! c₁ ∣ b ∣ (! c₂) ⨾☐• ☐ ⟩▷ ↦* toState! (c₁ ⨾ c₂) x
+          loop₂ rs refl with inspect⊎ (run ［ c₁ ∣ b ∣ ☐  ］◁) (λ ())
+          loop₂ rs refl | inj₁ ((a  , rsb) , eq) = lem
+            where
+            rs' : ⟨ c₂ ∣ b ∣ c₁ ⨾☐• ☐ ⟩◁ ↦* ⟨ c₁ ⨾ c₂ ∣ a ∣ ☐ ⟩◁
+            rs' = ↦⃖₇ ∷ appendκ↦* rsb refl (☐⨾ c₂ • ☐) ++↦ ↦⃖₃ ∷ ◾
 
-      loop₂⃗ : ∀ {A B C c₀} {c₁ : A ↔ B} {b : ⟦ B ⟧} {c₂ : B ↔ C}
-             → ［ c₁ ⨾ c₂ ∣ c₀ ∣ ☐ ］◁ ↦* ［ c₁ ∣ b ∣ ☐⨾ c₂ • ☐ ］▷
-             →  ⟨ ! c₂ ⨾ ! c₁ ∣ c₀ ∣ ☐ ⟩▷ ↦* ⟨ ! c₁ ∣ b ∣ ! c₂ ⨾☐• ☐ ⟩◁
-             →  ⟨ ! c₂ ⨾ ! c₁ ∣ c₀ ∣ ☐ ⟩▷ ↦* (toState! (c₁ ⨾ c₂) (eval (c₁ ⨾ c₂) (c₀ ⃖)))
-      loop₂⃗ {c₀ = c₀} {c₁} {b} {c₂} rs rs! with inspect⊎ (run ⟨ c₂ ∣ b ∣ ☐ ⟩▷) (λ ())
-      loop₂⃗ {c₀ = c₀} {c₁} {b} {c₂} rs rs! | inj₁ ((b' , rsb) , eq) = loop₂⃖ rs' rs!'
-        where
-        rs' : ［ c₁ ⨾ c₂ ∣ c₀ ∣ ☐ ］◁ ↦* ［ c₁ ∣ b' ∣ ☐⨾ c₂ • ☐ ］◁
-        rs' = rs ++↦ ↦⃗₇ ∷ appendκ↦* rsb refl (c₁ ⨾☐• ☐) ++↦ ↦⃖₇ ∷ ◾
+            rs!' : ⟨ ! c₁ ∣ b ∣ (! c₂) ⨾☐• ☐ ⟩▷ ↦* ［ ! c₂ ⨾ ! c₁ ∣ a ∣ ☐ ］▷
+            rs!' = Rev* (appendκ↦* (getₜᵣ⃖ (! c₁) (!rev c₁ (b ⃖) (eval-toState₂ rsb))) refl (! c₂ ⨾☐• ☐)) ++↦ ↦⃗₁₀ ∷ ◾
+            
+            xeq : x ≡ a ⃖
+            xeq = toState≡₂ (deterministic* rs rs' (is-stuck-toState _ _) (λ ()))
+            
+            lem : ⟨ ! c₁ ∣ b ∣ (! c₂) ⨾☐• ☐ ⟩▷ ↦* (toState! (c₁ ⨾ c₂) x)
+            lem rewrite xeq = rs!'
+          loop₂ rs refl | inj₂ ((b' , rsb) , eq) = rs!' ++↦ proj₁ (R (len↦ rs'') le b') rs'' refl
+            where
+            rs' : ⟨ c₂ ∣ b ∣ c₁ ⨾☐• ☐ ⟩◁ ↦* ［ c₁ ∣ b' ∣ ☐⨾ c₂ • ☐ ］▷
+            rs' = ↦⃖₇ ∷ appendκ↦* rsb refl (☐⨾ c₂ • ☐)
+            
+            rs'' : ［ c₁ ∣ b' ∣ ☐⨾ c₂ • ☐ ］▷ ↦* toState (c₁ ⨾ c₂) x
+            rs'' = proj₁ (deterministic*' rs' rs (is-stuck-toState _ _))
 
-        rs!' : ⟨ ! c₂ ⨾ ! c₁ ∣ c₀ ∣ ☐ ⟩▷ ↦* ⟨ ! c₁ ∣ b' ∣ ! c₂ ⨾☐• ☐ ⟩▷
-        rs!' = rs! ++↦ ↦⃖₇ ∷ Rev* (appendκ↦* (getₜᵣ⃖ (! c₂) (!rev c₂ (b ⃗) (eval-toState₁ rsb))) refl (☐⨾ ! c₁ • ☐)) ++↦ ↦⃗₇ ∷ ◾
-      loop₂⃗ {c₀ = c₀} {c₁} {b} {c₂} rs rs! | inj₂ ((c  , rsb) , eq) = lem
-        where
-        rs' : ［ c₁ ⨾ c₂ ∣ c₀ ∣ ☐ ］◁ ↦* ［ c₁ ⨾ c₂  ∣ c ∣ ☐ ］▷
-        rs' = rs ++↦ ↦⃗₇ ∷ appendκ↦* rsb refl (c₁ ⨾☐• ☐) ++↦ ↦⃗₁₀ ∷ ◾
+            req : len↦ rs ≡ len↦ rs' + len↦ rs''
+            req = proj₂ (deterministic*' rs' rs (is-stuck-toState _ _))
 
-        rs!' : ⟨ ! c₂ ⨾ ! c₁ ∣ c₀ ∣ ☐ ⟩▷ ↦* ⟨ ! c₂ ⨾ ! c₁ ∣ c ∣ ☐ ⟩◁
-        rs!' = rs! ++↦ ↦⃖₇ ∷ Rev* (appendκ↦* (getₜᵣ⃗ (! c₂) (!rev c₂ (b ⃗) (eval-toState₁ rsb))) refl (☐⨾ ! c₁ • ☐)) ++↦ ↦⃖₃ ∷ ◾
+            le : len↦ rs'' <′ len↦ rs
+            le = subst (λ x → len↦ rs'' <′ x) (sym req) (s≤′s (n≤′m+n _ _))
 
-        lem : ⟨ ! c₂ ⨾ ! c₁ ∣ c₀ ∣ ☐ ⟩▷ ↦* (toState! (c₁ ⨾ c₂) (eval (c₁ ⨾ c₂) (c₀ ⃖)))
-        lem rewrite eval-toState₂ rs' = rs!'
-
-      loop₂⃖ : ∀ {A B C c₀} {c₁ : A ↔ B} {b : ⟦ B ⟧} {c₂ : B ↔ C}
-             → ［ c₁ ⨾ c₂ ∣ c₀ ∣ ☐ ］◁ ↦* ［ c₁ ∣ b ∣ ☐⨾ c₂ • ☐ ］◁
-             →  ⟨ ! c₂ ⨾ ! c₁ ∣ c₀ ∣ ☐ ⟩▷ ↦* ⟨ ! c₁ ∣ b ∣ ! c₂ ⨾☐• ☐ ⟩▷
-             →  ⟨ ! c₂ ⨾ ! c₁ ∣ c₀ ∣ ☐ ⟩▷ ↦* (toState! (c₁ ⨾ c₂) (eval (c₁ ⨾ c₂) (c₀ ⃖)))
-      loop₂⃖ {c₀ = c₀} {c₁} {b} {c₂} rs rs! with inspect⊎ (run ［ c₁ ∣ b ∣ ☐  ］◁) (λ ())
-      loop₂⃖ {c₀ = c₀} {c₁} {b} {c₂} rs rs! | inj₁ ((a  , rsb) , eq) = lem
-        where
-        rs' : ［ c₁ ⨾ c₂ ∣ c₀ ∣ ☐ ］◁ ↦* ⟨ c₁ ⨾ c₂ ∣ a ∣ ☐ ⟩◁
-        rs' = rs ++↦ appendκ↦* rsb refl (☐⨾ c₂ • ☐) ++↦ ↦⃖₃ ∷ ◾
-
-        rs!' : ⟨ ! c₂ ⨾ ! c₁ ∣ c₀ ∣ ☐ ⟩▷ ↦* ［ ! c₂ ⨾ ! c₁ ∣ a ∣ ☐ ］▷
-        rs!' = rs! ++↦ Rev* (appendκ↦* (getₜᵣ⃖ (! c₁) (!rev c₁ (b ⃖) (eval-toState₂ rsb))) refl (! c₂ ⨾☐• ☐)) ++↦ ↦⃗₁₀ ∷ ◾
-
-        lem : ⟨ ! c₂ ⨾ ! c₁ ∣ c₀ ∣ ☐ ⟩▷ ↦* (toState! (c₁ ⨾ c₂) (eval (c₁ ⨾ c₂) (c₀ ⃖)))
-        lem rewrite eval-toState₂ rs' = rs!'
-      loop₂⃖ {c₀ = c₀} {c₁} {b} {c₂} rs rs! | inj₂ ((b' , rsb) , eq) = loop₂⃗ rs' rs!'
-        where
-        rs' : ［ c₁ ⨾ c₂ ∣ c₀ ∣ ☐ ］◁ ↦* ［ c₁ ∣ b' ∣ ☐⨾ c₂ • ☐ ］▷
-        rs' = rs ++↦ appendκ↦* rsb refl (☐⨾ c₂ • ☐)
-
-        rs!' : ⟨ ! c₂ ⨾ ! c₁ ∣ c₀ ∣ ☐ ⟩▷ ↦* ⟨ ! c₁ ∣ b' ∣ ! c₂ ⨾☐• ☐ ⟩◁
-        rs!' = rs! ++↦ Rev* (appendκ↦* (getₜᵣ⃗ (! c₁) (!rev c₁ (b ⃖) (eval-toState₂ rsb))) refl (! c₂ ⨾☐• ☐))
+            rs!' : ⟨ ! c₁ ∣ b ∣ (! c₂) ⨾☐• ☐ ⟩▷ ↦* ⟨ ! c₁ ∣ b' ∣ ! c₂ ⨾☐• ☐ ⟩◁
+            rs!' = Rev* (appendκ↦* (getₜᵣ⃗ (! c₁) (!rev c₁ (b ⃖) (eval-toState₂ rsb))) refl (! c₂ ⨾☐• ☐))
 
   pinv₁ : ∀ {A B} → (c : A ↔ B) → eval ((c ⨾ ! c) ⨾ c) ∼ eval c
   pinv₁ c (x ⃗) with inspect⊎ (run ⟨ c ∣ x ∣ ☐ ⟩▷) (λ ())
