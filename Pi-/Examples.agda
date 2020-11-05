@@ -52,14 +52,16 @@ pattern 𝕋 = inj₂ tt
 [A+B]+[C+D]=[A+C]+[B+D] : {A B C D : 𝕌} → (A +ᵤ B) +ᵤ (C +ᵤ D) ↔ (A +ᵤ C) +ᵤ (B +ᵤ D)
 [A+B]+[C+D]=[A+C]+[B+D] = assocl₊ ⨾ (assocr₊ ⊕ id↔) ⨾ ((id↔ ⊕ swap₊) ⊕ id↔) ⨾ (assocl₊ ⊕ id↔) ⨾ assocr₊
 
+A+[B+C]=B+[A+C] : ∀ {A B C} → A +ᵤ (B +ᵤ C) ↔ B +ᵤ (A +ᵤ C)
+A+[B+C]=B+[A+C] = assocl₊ ⨾ swap₊ ⊕ id↔ ⨾ assocr₊
+
 Ax[BxC]=Bx[AxC] : {A B C : 𝕌} → A ×ᵤ (B ×ᵤ C) ↔ B ×ᵤ (A ×ᵤ C)
 Ax[BxC]=Bx[AxC] = assocl⋆ ⨾ (swap⋆ ⊗ id↔) ⨾  assocr⋆
 
 [AxB]×C=[A×C]xB : ∀ {A B C} → (A ×ᵤ B) ×ᵤ C ↔ (A ×ᵤ C) ×ᵤ B
 [AxB]×C=[A×C]xB = assocr⋆ ⨾ (id↔ ⊗ swap⋆) ⨾ assocl⋆
 
-[A×B]×[C×D]=[A×C]×[B×D] : {A B C D : 𝕌} →
-  (A ×ᵤ B) ×ᵤ (C ×ᵤ D) ↔ (A ×ᵤ C) ×ᵤ (B ×ᵤ D)
+[A×B]×[C×D]=[A×C]×[B×D] : {A B C D : 𝕌} → (A ×ᵤ B) ×ᵤ (C ×ᵤ D) ↔ (A ×ᵤ C) ×ᵤ (B ×ᵤ D)
 [A×B]×[C×D]=[A×C]×[B×D] = assocl⋆ ⨾ (assocr⋆ ⊗ id↔) ⨾ ((id↔ ⊗ swap⋆) ⊗ id↔) ⨾ (assocl⋆ ⊗ id↔) ⨾ assocr⋆
 
 -- FST2LAST(b₁,b₂,…,bₙ) = (b₂,…,bₙ,b₁)
@@ -182,10 +184,14 @@ module loop_test where
 
 -----------------------------------------------------------------------------
 -- Data Structures Conversions
+𝟙+ : ℕ → 𝕌
+𝟙+ 0 = 𝟘
+𝟙+ 1 = 𝟙
+𝟙+ (suc (suc n)) = 𝟙 +ᵤ (𝟙+ (suc n))
 
-convert : ∀ {n} → 𝔹+ (2 ^ n) ↔ 𝔹* n
+convert : ∀ {n} → 𝟙+ (2 ^ n) ↔ 𝔹^ n
 convert {0} = id↔
-convert {1} = (uniti⋆l ⊕ uniti⋆l) ⨾ factor
+convert {1} = id↔
 convert {suc (suc n)} =
   split ⨾ 
   (convert {suc n} ⊕ (coe {n} ⨾ convert {suc n})) ⨾
@@ -193,63 +199,43 @@ convert {suc (suc n)} =
   factor
 
   where
-
-    coe : ∀ {n} → 𝔹+ ((2 ^ n) + ((2 ^ n) + 0) + 0) ↔ 𝔹+ (2 ^ (1 + n))
+    coe : ∀ {n} → 𝟙+ ((2 ^ n) + ((2 ^ n) + 0) + 0) ↔ 𝟙+ (2 ^ (1 + n))
     coe {n} rewrite +-identityʳ ((2 ^ n) + ((2 ^ n) + 0)) = id↔
     
-    split : ∀ {n m} → 𝔹+ (n + m) ↔ (𝔹+ n +ᵤ 𝔹+ m)
+    split : ∀ {n m} → 𝟙+ (n + m) ↔ (𝟙+ n +ᵤ 𝟙+ m)
     split {0} {m} = uniti₊l
     split {1} {0} = uniti₊r
     split {1} {1} = id↔
     split {1} {suc (suc m)} = id↔
     split {suc (suc n)} {m} = (id↔ ⊕ split) ⨾ assocl₊
 
-1023→2¹⁰-1 : 𝔹+ 1023 ↔ (- 𝔹 +ᵤ 𝔹* 10)
-1023→2¹⁰-1 =
-  uniti₊l ⨾
-  ((η₊ ⨾ swap₊) ⊕ id↔) ⨾
-  assocr₊ ⨾ 
-  (id↔ ⊕ convert {10})
+2047→2¹¹-1 : 𝟙+ 2047 ↔ (- 𝟙 +ᵤ 𝔹^ 11)
+2047→2¹¹-1 = uniti₊l ⨾
+             ((η₊ ⨾ swap₊) ⊕ id↔) ⨾ 
+             assocr₊ ⨾ 
+             (id↔ ⊕ convert {11})
 
-2047→2¹¹-1 : 𝔹+ 2047 ↔ (- 𝔹 +ᵤ 𝔹* 11)
-2047→2¹¹-1 =
-  uniti₊l ⨾
-  ((η₊ ⨾ swap₊) ⊕ id↔) ⨾ 
-  assocr₊ ⨾ 
-  (id↔ ⊕ convert {11})
+incr+ : ∀ {n} → 𝟙+ n ↔ 𝟙+ n
+incr+ {0} = id↔
+incr+ {1} = id↔
+incr+ {2} = swap₊
+incr+ {suc (suc (suc n))} = (id↔ ⊕ incr+) ⨾ A+[B+C]=B+[A+C]
 
-incr* : 𝔹* 11 ↔ 𝔹* 11
-incr* = apply1023 {11} INCR
-  where
-    apply1023 : ∀ {n} → (𝔹 ↔ 𝔹) → 𝔹* n ↔ 𝔹* n
-    apply1023 {0} c = id↔
-    apply1023 {1} c = CIF₂ c
-    apply1023 {suc (suc n)} c = CIF₂ (apply1023 c)
+incr+' : 𝟙+ 2047 ↔ 𝟙+ 2047
+incr+' = 2047→2¹¹-1 ⨾ (id↔ ⊕ INCR) ⨾ ! 2047→2¹¹-1
 
-incr+ : 𝔹+ 2047 ↔ 𝔹+ 2047
-incr+ = applyLast₊ {2047} INCR
-  where
-    applyLast₊ : ∀ {n} → (𝔹 ↔ 𝔹) → 𝔹+ n ↔ 𝔹+ n
-    applyLast₊ {0} c = id↔
-    applyLast₊ {1} c = c
-    applyLast₊ {suc (suc n)} c = id↔ ⊕ applyLast₊ c
-
-incr+' : 𝔹+ 2047 ↔ 𝔹+ 2047
-incr+' = 2047→2¹¹-1 ⨾ (id↔ ⊕ incr*) ⨾ ! 2047→2¹¹-1
-
-v : (n : ℕ) → ¬ n ≡ 0 → ⟦ 𝔹+ n ⟧
+v : (n : ℕ) → ¬ n ≡ 0 → ⟦ 𝟙+ n ⟧
 v 0 0≠0 = 0≠0 refl
-v 1 _ = 𝔽 
+v 1 _ = tt
 v (suc (suc n)) _ = inj₂ (v (suc n) (λ ()))
 
-len1 len2 : ℕ
-len1 = proj₂ (eval' incr+  (v 2047 (λ ())))   -- 4093
-len2 = proj₂ (eval' incr+' (v 2047 (λ ())))   -- 25041
-len3 = proj₂ (eval' 2047→2¹¹-1 (v 2047 (λ ()))) -- 12439
+len1 = proj₂ (eval' (incr+ {2047}) (v 2047 (λ ())))     -- 32721
+len2 = proj₂ (eval' incr+' (v 2047 (λ ())))             -- 20143
+len3 = proj₂ (eval' 2047→2¹¹-1 (v 2047 (λ ())))         -- 12433
 v' = (proj₂ ∘ proj₁) (eval' 2047→2¹¹-1 (v 2047 (λ ())))
-len4 = proj₂ (eval' (id↔ ⊕ incr*) v') -- 157
-v'' = (proj₂ ∘ proj₁) (eval' (id↔ ⊕ incr*) v')
-len5 = proj₂ (eval' (! 2047→2¹¹-1) v'') -- 12439
+len4 = proj₂ (eval' (id↔ ⊕ INCR) v')                    -- 3453
+v'' = (proj₂ ∘ proj₁) (eval' (id↔ ⊕ INCR) v')
+len5 = proj₂ (eval' (! 2047→2¹¹-1) v'')                 -- 249
 
 -----------------------------------------------------------------------------
 -- Higher-Order Combinators
