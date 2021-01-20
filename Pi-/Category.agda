@@ -11,6 +11,8 @@ open import Categories.Category.Inverse
 open import Categories.Category.Product
 open import Data.Product
 open import Data.Sum
+open import Data.Empty
+open import Relation.Nullary
 open import Base
 open import Pi-.Syntax
 open import Pi-.Opsem
@@ -298,10 +300,55 @@ Pi-CompactClosed : CompactClosed Pi-Monoidal
 Pi-CompactClosed = record { symmetric = Pi-Symmetric
                           ; rigid     = inj₁ Pi-Rigid}
 
-Pi-Inverse : Inverse Pi-
-Pi-Inverse = record { _⁻¹ = !_
-                    ; pseudo-iso₁ = pinv₁ _
-                    ; pseudo-iso₂ = pinv₂ _ }
+¬Pi-Inverse : ¬(Inverse Pi-)
+¬Pi-Inverse record { _⁻¹ = _⁻¹ } with (ε₊ {𝟙} ⊕ id↔ {𝟙}) ⁻¹
+... | c , (_ , _) , uniq = contr
+  where
+  c₁ c₂ : 𝟘 +ᵤ 𝟙 ↔ (𝟙 +ᵤ - 𝟙) +ᵤ 𝟙
+  c₁ = η₊ ⊕ id↔
+  c₂ = (η₊ ⊕ id↔) ⨾ swap₊ ⨾ (id↔ ⊕ swap₊) ⨾ assocl₊
+  
+  c₁pinv : (eval (((ε₊ {𝟙} ⊕ id↔) ⨾ c₁) ⨾ (ε₊ ⊕ id↔)) ∼ eval (ε₊ ⊕ id↔))
+         × (eval ((c₁ ⨾ (ε₊ ⊕ id↔)) ⨾ c₁) ∼ eval c₁)
+  c₁pinv = p₁ , p₂
+    where
+    p₁ : eval (((ε₊ {𝟙} ⊕ id↔) ⨾ c₁) ⨾ (ε₊ ⊕ id↔)) ∼ eval (ε₊ ⊕ id↔)
+    p₁ (inj₁ (inj₁ tt) ⃗) = refl
+    p₁ (inj₁ (inj₂ (- tt)) ⃗) = refl
+    p₁ (inj₂ tt ⃗) = refl
+    p₁ (inj₂ tt ⃖) = refl
+
+    p₂ : eval ((c₁ ⨾ (ε₊ ⊕ id↔)) ⨾ c₁) ∼ eval c₁
+    p₂ (inj₂ tt ⃗) = refl
+    p₂ (inj₁ (inj₁ tt) ⃖) = refl
+    p₂ (inj₁ (inj₂ (- tt)) ⃖) = refl
+    p₂ (inj₂ tt ⃖) = refl
+
+  c₂pinv : (eval (((ε₊ {𝟙} ⊕ id↔) ⨾ c₂) ⨾ (ε₊ ⊕ id↔)) ∼ eval (ε₊ ⊕ id↔))
+         × (eval ((c₂ ⨾ (ε₊ ⊕ id↔)) ⨾ c₂) ∼ eval c₂)
+  c₂pinv = p₁ , p₂
+    where
+    p₁ : eval (((ε₊ {𝟙} ⊕ id↔) ⨾ c₂) ⨾ (ε₊ ⊕ id↔)) ∼ eval (ε₊ ⊕ id↔)
+    p₁ (inj₁ (inj₁ tt) ⃗) = refl
+    p₁ (inj₁ (inj₂ (- tt)) ⃗) = refl
+    p₁ (inj₂ tt ⃗) = refl
+    p₁ (inj₂ tt ⃖) = refl
+
+    p₂ : eval ((c₂ ⨾ (ε₊ ⊕ id↔)) ⨾ c₂) ∼ eval c₂
+    p₂ (inj₂ tt ⃗) = refl
+    p₂ (inj₁ (inj₁ tt) ⃖) = refl
+    p₂ (inj₁ (inj₂ (- tt)) ⃖) = refl
+    p₂ (inj₂ tt ⃖) = refl
+
+  c∼c₁ : eval c ∼ eval c₁
+  c∼c₁ = uniq c₁pinv
+
+  c∼c₂ : eval c ∼ eval c₂
+  c∼c₂ = uniq c₂pinv
+
+  contr : ⊥
+  contr with trans (sym (c∼c₁ (inj₂ _ ⃗))) (c∼c₂ (inj₂ _ ⃗))
+  ... | ()
 
 IHom : ∀ {A B C} → C ↔ (- A +ᵤ B) → (C +ᵤ A) ↔ B
 IHom f = (f ⊕ id↔) ⨾ [A+B]+C=[A+C]+B ⨾ (swap₊ ⊕ id↔) ⨾ (ε₊ ⊕ id↔) ⨾ unite₊l

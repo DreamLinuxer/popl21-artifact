@@ -92,9 +92,12 @@ This document contains a list of claims in the paper and corresponding code.
 
 \subsection{Compact Closed Category}
 \begin{itemize}
-\item Thm.24 is proved in \textbf{Pi-/Category.agda:L297}.
-\item Thm.25 is proved in \textbf{Pi-/Category.agda:L301}.
-\item The code for the remark in the end is in \textbf{Pi-/Category.agda:L306-363}.
+\item Thm.24 is proved in \textbf{Pi-/Category.agda:L299}.
+\item Thm.25 does not hold because it does not satisfy the uniqueness condition required by inverse category,
+  which is missing from the proof and previous formalization (Thanks Cole Comfort for pointing this out).
+  The counterexample is in \textbf{Pi-/Category.agda:L303}.
+  All arguments in the proof still hold, which is proved in the module at \textbf{Pi-/Properties.agda:L991}.
+\item The code for the remark in the end is in \textbf{Pi-/Category.agda:L353-410}.
 \end{itemize}
 
 \section{Fractional Types: $\Pi^d$}
