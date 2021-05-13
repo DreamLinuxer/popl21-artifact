@@ -12,6 +12,7 @@ The main directory stores several files and directories:
   * `agda-categories`: The Category Theory library for Agda (https://github.com/agda/agda-categories/tree/59038002f7d69fa4b7d878837da56c44f1cfff98)
   * `Doc/paper.pdf`: The paper.
   * `Doc/artifact.pdf`: The documentation of the artifact.
+  * `Doc/errata.pdf`: Errata.
   * `Everything.agda`: Import everything.
   * Section 2:
     * `Pi/Everything`: All theorems for Π
